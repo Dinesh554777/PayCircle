@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+
+# Environment variables
+.env
+.env.*
+
+# OS generated files
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Lockfiles (optional, only if the team decides not to track it)
+package-lock.json
+
+# IDE / Editor
+.vscode/settings.json
+.idea/
+
+# Testing
+coverage/
+
+# ESLint
+.eslintcache
