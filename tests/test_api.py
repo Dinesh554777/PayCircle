@@ -1,23 +1,33 @@
-def _create_user(client, name, email):
-    return client.post(
-        "/api/users",
-        json={"name": name, "email": email, "password": "secret123"},
+def _register(client, name, email, password="secret123"):
+    response = client.post(
+        "/api/auth/register",
+        json={"name": name, "email": email, "password": password},
     )
+    assert response.status_code == 201
+    data = response.json()
+    return data["user"], data["access_token"]
+
+
+def _auth(token):
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_full_user_group_expense_settlement_flow(client):
-    alice = _create_user(client, "Alice", "alice@example.com").json()
-    bob = _create_user(client, "Bob", "bob@example.com").json()
+    alice, alice_token = _register(client, "Alice", "alice@example.com")
+    bob, _ = _register(client, "Bob", "bob@example.com")
 
     group = client.post(
         "/api/groups",
-        json={"name": "Trip", "description": "Goa trip", "created_by": alice["id"]},
+        headers=_auth(alice_token),
+        json={"name": "Trip", "description": "Goa trip"},
     )
     assert group.status_code == 201
     group_id = group.json()["id"]
 
     member = client.post(
-        f"/api/groups/{group_id}/members", json={"user_id": bob["id"], "role": "member"}
+        f"/api/groups/{group_id}/members",
+        headers=_auth(alice_token),
+        json={"user_id": bob["id"], "role": "member"},
     )
     assert member.status_code == 201
     assert member.json()["user_id"] == bob["id"]
@@ -50,19 +60,26 @@ def test_full_user_group_expense_settlement_flow(client):
 
 
 def test_duplicate_email_rejected(client):
-    assert _create_user(client, "Alice", "alice@example.com").status_code == 201
-    response = _create_user(client, "Alice Again", "alice@example.com")
+    assert _register(client, "Alice", "alice@example.com")[0]["id"] > 0
+    response = client.post(
+        "/api/auth/register",
+        json={"name": "Alice Again", "email": "alice@example.com", "password": "secret123"},
+    )
     assert response.status_code == 409
 
 
 def test_split_amounts_must_match_expense(client):
-    alice = _create_user(client, "Alice", "alice@example.com").json()
+    alice, alice_token = _register(client, "Alice", "alice@example.com")
     group = client.post(
-        "/api/groups", json={"name": "Trip", "created_by": alice["id"]}
-    ).json()
+        "/api/groups",
+        headers=_auth(alice_token),
+        json={"name": "Trip"},
+    )
+    assert group.status_code == 201
+    group_id = group.json()["id"]
 
     response = client.post(
-        f"/api/groups/{group['id']}/expenses",
+        f"/api/groups/{group_id}/expenses",
         json={
             "description": "Taxi",
             "amount": "50.00",
@@ -75,12 +92,18 @@ def test_split_amounts_must_match_expense(client):
 
 
 def test_duplicate_member_rejected(client):
-    alice = _create_user(client, "Alice", "alice@example.com").json()
+    alice, alice_token = _register(client, "Alice", "alice@example.com")
     group = client.post(
-        "/api/groups", json={"name": "Trip", "created_by": alice["id"]}
-    ).json()
+        "/api/groups",
+        headers=_auth(alice_token),
+        json={"name": "Trip"},
+    )
+    assert group.status_code == 201
+    group_id = group.json()["id"]
 
     duplicate = client.post(
-        f"/api/groups/{group['id']}/members", json={"user_id": alice["id"]}
+        f"/api/groups/{group_id}/members",
+        headers=_auth(alice_token),
+        json={"user_id": alice["id"]},
     )
     assert duplicate.status_code == 409

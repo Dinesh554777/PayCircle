@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class GroupBase(BaseModel):
@@ -9,7 +9,7 @@ class GroupBase(BaseModel):
 
 
 class GroupCreate(GroupBase):
-    created_by: int
+    pass
 
 
 class GroupRead(GroupBase):
@@ -20,8 +20,17 @@ class GroupRead(GroupBase):
     created_at: datetime
 
 
+class UserBrief(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    email: EmailStr
+
+
 class MemberAdd(BaseModel):
-    user_id: int
+    user_id: int | None = None
+    email: EmailStr | None = None
     role: str = Field(default="member", pattern="^(admin|member)$")
 
 
@@ -32,8 +41,10 @@ class MemberRead(BaseModel):
     group_id: int
     user_id: int
     role: str
-    created_at: datetime
+    joined_at: datetime
+    user: UserBrief | None = None
 
 
 class GroupWithMembers(GroupRead):
+    creator: UserBrief | None = Field(default=None, validation_alias="created_by_user")
     members: list[MemberRead] = []

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String, UniqueConstraint
@@ -24,3 +25,7 @@ class GroupMember(TimestampMixin, Base):
 
     group: Mapped[Group] = relationship(back_populates="members")
     user: Mapped[User] = relationship(back_populates="memberships")
+
+    @property
+    def joined_at(self) -> datetime:
+        return self.created_at

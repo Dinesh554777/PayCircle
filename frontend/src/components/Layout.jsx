@@ -12,6 +12,7 @@ export default function Layout() {
 
   const navItems = [
     { to: "/dashboard", label: "Dashboard" },
+    { to: "/groups", label: "Groups" },
     { to: "/profile", label: "Profile" },
   ];
 

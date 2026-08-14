@@ -43,5 +43,9 @@ export async function apiRequest(path, { method = "GET", body, auth = false } = 
     throw new Error(detail);
   }
 
+  if (response.status === 204) {
+    return null;
+  }
+
   return response.json();
 }

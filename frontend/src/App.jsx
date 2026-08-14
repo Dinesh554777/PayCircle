@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Groups from "./pages/Groups";
+import GroupDetails from "./pages/GroupDetails";
 import Profile from "./pages/Profile";
 import Layout from "./components/Layout";
 
@@ -43,6 +45,8 @@ function AppRoutes() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/groups" element={<Groups />} />
+        <Route path="/groups/:id" element={<GroupDetails />} />
         <Route path="/profile" element={<Profile />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
