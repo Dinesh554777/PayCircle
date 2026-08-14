@@ -246,6 +246,36 @@ export default function Dashboard() {
                           >
                             {item.type}
                           </span>
+                          {item.type === "expense" && item.category && (
+                            <span
+                              style={{
+                                marginLeft: "0.25rem",
+                                fontSize: "0.75rem",
+                                background: "#ecfdf5",
+                                color: "#047857",
+                                padding: "0.1rem 0.4rem",
+                                borderRadius: "0.25rem",
+                              }}
+                            >
+                              {item.category}
+                            </span>
+                          )}
+                          {item.type === "expense" && item.ai_category && (
+                            <span
+                              title="AI-generated category"
+                              style={{
+                                marginLeft: "0.25rem",
+                                fontSize: "0.7rem",
+                                background: "#f5f3ff",
+                                color: "#7c3aed",
+                                padding: "0.1rem 0.35rem",
+                                borderRadius: "0.25rem",
+                                border: "1px solid #ddd6fe",
+                              }}
+                            >
+                              AI
+                            </span>
+                          )}
                         </div>
                         <div style={{ color: "#6b7280", fontSize: "0.875rem" }}>
                           {item.group?.name} · {formatDate(item.date)}

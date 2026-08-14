@@ -31,7 +31,7 @@ class ExpenseBase(BaseModel):
 
 
 class ExpenseCreate(ExpenseBase):
-    pass
+    auto_categorize: bool = True
 
 
 class ExpenseUpdate(ExpenseBase):
@@ -74,6 +74,8 @@ class ExpenseRead(BaseModel):
     description: str | None
     amount: Decimal
     category: str | None
+    ai_category: str | None = None
+    ai_confidence: float | None = None
     paid_by: int = Field(validation_alias="payer_id")
     expense_date: datetime | None = Field(validation_alias="paid_at")
     split_method: str | None

@@ -26,6 +26,8 @@ class Expense(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ai_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ai_confidence: Mapped[float | None] = mapped_column(nullable=True)
     split_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

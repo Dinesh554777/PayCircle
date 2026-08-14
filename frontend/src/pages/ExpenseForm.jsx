@@ -11,6 +11,19 @@ const METHODS = [
   { value: "percentage", label: "Percentage" },
 ];
 
+const CATEGORIES = [
+  "Food",
+  "Transport",
+  "Entertainment",
+  "Shopping",
+  "Utilities",
+  "Healthcare",
+  "Education",
+  "Travel",
+  "Rent",
+  "Other",
+];
+
 export default function ExpenseForm() {
   const { id, expenseId } = useParams();
   const isEdit = Boolean(expenseId);
@@ -23,6 +36,7 @@ export default function ExpenseForm() {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
+  const [aiCategory, setAiCategory] = useState("");
   const [paidBy, setPaidBy] = useState("");
   const [expenseDate, setExpenseDate] = useState("");
   const [splitMethod, setSplitMethod] = useState("equal");
@@ -51,6 +65,7 @@ export default function ExpenseForm() {
           setDescription(expense.description || "");
           setAmount(String(expense.amount));
           setCategory(expense.category || "");
+          setAiCategory(expense.ai_category || "");
           setPaidBy(String(expense.paid_by));
           setExpenseDate(expense.expense_date ? expense.expense_date.slice(0, 10) : "");
           setSplitMethod(expense.split_method || "equal");
@@ -228,11 +243,25 @@ export default function ExpenseForm() {
             onChange={(e) => setAmount(e.target.value)}
           />
           <Input
-            label="Category (optional)"
+            label="Category"
             name="category"
+            type="select"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
+            options={CATEGORIES.map((c) => ({ id: c, name: c }))}
+            placeholder="Auto (AI)"
           />
+          <p
+            style={{
+              marginTop: "-0.5rem",
+              fontSize: "0.75rem",
+              color: "#6b7280",
+            }}
+          >
+            {isEdit && aiCategory
+              ? `Currently categorized as ${aiCategory} by AI.`
+              : "Leave empty to auto-categorize with AI."}
+          </p>
           <Input
             label="Paid by"
             name="paidBy"

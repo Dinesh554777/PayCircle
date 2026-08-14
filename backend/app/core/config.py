@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://paycircle:paycircle@localhost:5432/paycircle"
     SECRET_KEY: str = "change-me-in-production"
     AI_API_KEY: str = ""
+    AI_MODEL: str = "llama-3.3-70b-versatile"
 
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24

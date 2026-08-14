@@ -70,7 +70,26 @@ export default function ExpenseDetails() {
         <p>Paid by: {expense.paid_by_user?.name}</p>
         <p>Date: {formatDate(expense.expense_date || expense.created_at)}</p>
         <p>Split method: {expense.split_method}</p>
-        {expense.category && <p>Category: {expense.category}</p>}
+        {expense.category && (
+          <p>
+            Category: <strong>{expense.category}</strong>{" "}
+            {expense.ai_category && (
+              <span
+                title={`AI-generated (${Math.round((expense.ai_confidence ?? 0) * 100)}% confidence)`}
+                style={{
+                  fontSize: "0.75rem",
+                  background: "#f5f3ff",
+                  color: "#7c3aed",
+                  padding: "0.1rem 0.4rem",
+                  borderRadius: "0.25rem",
+                  border: "1px solid #ddd6fe",
+                }}
+              >
+                AI
+              </span>
+            )}
+          </p>
+        )}
         {expense.description && <p>Description: {expense.description}</p>}
       </Card>
 

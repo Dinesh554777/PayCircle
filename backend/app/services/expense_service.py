@@ -3,6 +3,7 @@ from decimal import ROUND_DOWN, Decimal
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from ai.categorizer import GroqCategorizer
 from app.models.expense import Expense
 from app.models.expense_split import ExpenseSplit
 from app.models.group import Group
@@ -14,9 +15,25 @@ from app.services.group_service import GroupService
 
 
 class ExpenseService(BaseService[Expense]):
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, categorizer: GroqCategorizer | None = None) -> None:
         super().__init__(db, Expense)
         self.groups = GroupService(db)
+        self.categorizer = categorizer or GroqCategorizer()
+
+    def _resolve_category(self, data) -> tuple[str | None, str | None, float | None]:
+        """Return (category, ai_category, ai_confidence) for a new expense."""
+        if data.category:
+            return data.category, None, None
+        if not getattr(data, "auto_categorize", True):
+            return None, None, None
+        text = f"{data.title} {data.description or ''}".strip()
+        try:
+            result = self.categorizer.categorize(text)
+        except Exception:
+            return None, None, None
+        if result.ai_generated:
+            return result.category, result.category, result.confidence
+        return result.category, None, None
 
     def _member_ids(self, group: Group) -> set[int]:
         rows = self.db.query(GroupMember).filter(GroupMember.group_id == group.id).all()
@@ -120,13 +137,16 @@ class ExpenseService(BaseService[Expense]):
         raise HTTPException(status_code=400, detail="Unsupported split method")
 
     def _build(self, group: Group, data, computed: list[tuple[int, Decimal]]) -> Expense:
+        category, ai_category, ai_confidence = self._resolve_category(data)
         return Expense(
             group_id=group.id,
             payer_id=data.paid_by,
             title=data.title,
             description=data.description,
             amount=data.amount,
-            category=data.category,
+            category=category,
+            ai_category=ai_category,
+            ai_confidence=ai_confidence,
             split_method=data.split_method,
             paid_at=data.expense_date,
         )
@@ -183,6 +203,9 @@ class ExpenseService(BaseService[Expense]):
         expense.description = data.description
         expense.amount = data.amount
         expense.category = data.category
+        if data.category != expense.ai_category:
+            expense.ai_category = None
+            expense.ai_confidence = None
         expense.split_method = data.split_method
         expense.paid_at = data.expense_date
 

@@ -17,6 +17,8 @@ class FeedItem(BaseModel):
     amount: Decimal
     date: datetime
     title: str | None = None
+    category: str | None = None
+    ai_category: str | None = None
     payer: UserBrief | None = None
     receiver: UserBrief | None = None
     status: str | None = None

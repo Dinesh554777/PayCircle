@@ -1,4 +1,4 @@
-export default function Input({ label, name, type = "text", options, ...props }) {
+export default function Input({ label, name, type = "text", options, placeholder, ...props }) {
   const baseStyle = {
     padding: "0.6rem",
     borderRadius: "0.375rem",
@@ -10,7 +10,7 @@ export default function Input({ label, name, type = "text", options, ...props })
       <span>{label}</span>
       {type === "select" ? (
         <select name={name} style={baseStyle} {...props}>
-          <option value="">Select...</option>
+          <option value="">{placeholder || "Select..."}</option>
           {(options || []).map((option) => (
             <option key={option.id} value={option.id}>
               {option.name}

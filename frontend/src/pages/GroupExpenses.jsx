@@ -100,6 +100,22 @@ export default function GroupExpenses() {
                     {expense.category}
                   </span>
                 )}
+                {expense.ai_category && (
+                  <span
+                    title="AI-generated category"
+                    style={{
+                      marginLeft: "0.25rem",
+                      fontSize: "0.7rem",
+                      background: "#f5f3ff",
+                      color: "#7c3aed",
+                      padding: "0.1rem 0.35rem",
+                      borderRadius: "0.25rem",
+                      border: "1px solid #ddd6fe",
+                    }}
+                  >
+                    AI
+                  </span>
+                )}
               </div>
               <Link to={`/groups/${id}/expenses/${expense.id}`}>Details</Link>
             </div>

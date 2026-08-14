@@ -7,6 +7,8 @@ from sqlalchemy.pool import StaticPool
 import app.models  # noqa: F401  (register all models on Base.metadata)
 from app.core.database import Base, get_db
 from app.main import app
+from ai.categorizer import CategorizationResult
+import app.services.expense_service as expense_service_module
 
 test_engine = create_engine(
     "sqlite://",
@@ -36,3 +38,14 @@ def client(db_session):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _stub_ai_categorizer(monkeypatch):
+    """Never hit the network during tests; tests override per-case when needed."""
+
+    class StubCategorizer:
+        def categorize(self, text):
+            return CategorizationResult("Food", 0.95, True, "groq")
+
+    monkeypatch.setattr(expense_service_module, "GroqCategorizer", lambda: StubCategorizer())

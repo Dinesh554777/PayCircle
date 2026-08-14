@@ -23,6 +23,8 @@ class TransactionService:
                     amount=expense.amount,
                     date=expense.paid_at or expense.created_at,
                     title=expense.title,
+                    category=expense.category,
+                    ai_category=expense.ai_category,
                     payer=expense.payer,
                     group=expense.group,
                     splits=[
