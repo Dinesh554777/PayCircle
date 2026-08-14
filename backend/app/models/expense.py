@@ -22,9 +22,11 @@ class Expense(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     group_id: Mapped[int] = mapped_column(ForeignKey("groups.id"), nullable=False)
     payer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    split_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     group: Mapped[Group] = relationship(back_populates="expenses")

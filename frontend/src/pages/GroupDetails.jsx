@@ -107,6 +107,9 @@ export default function GroupDetails() {
       </p>
 
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+        <Link to={`/groups/${id}/expenses`}>
+          <Button>Expenses</Button>
+        </Link>
         <Button variant="secondary" onClick={handleLeave}>
           Leave Group
         </Button>

@@ -34,11 +34,13 @@ def test_full_user_group_expense_settlement_flow(client):
 
     expense = client.post(
         f"/api/groups/{group_id}/expenses",
+        headers=_auth(alice_token),
         json={
-            "description": "Pizza dinner",
+            "title": "Pizza dinner",
             "amount": "30.00",
-            "payer_id": alice["id"],
-            "splits": [
+            "paid_by": alice["id"],
+            "split_method": "exact",
+            "exact_amounts": [
                 {"user_id": alice["id"], "amount": "15.00"},
                 {"user_id": bob["id"], "amount": "15.00"},
             ],
@@ -80,11 +82,13 @@ def test_split_amounts_must_match_expense(client):
 
     response = client.post(
         f"/api/groups/{group_id}/expenses",
+        headers=_auth(alice_token),
         json={
-            "description": "Taxi",
+            "title": "Taxi",
             "amount": "50.00",
-            "payer_id": alice["id"],
-            "splits": [{"user_id": alice["id"], "amount": "10.00"}],
+            "paid_by": alice["id"],
+            "split_method": "exact",
+            "exact_amounts": [{"user_id": alice["id"], "amount": "10.00"}],
         },
     )
     assert response.status_code == 400
