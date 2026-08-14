@@ -1,16 +1,23 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+from app.schemas.group import UserBrief
 
 
-class TransactionRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    group_id: int
+class FeedSplit(BaseModel):
     user_id: int
-    type: str
     amount: Decimal
-    description: str | None
-    created_at: datetime
+    user: UserBrief | None = None
+
+
+class FeedItem(BaseModel):
+    type: str  # "expense" | "settlement"
+    amount: Decimal
+    date: datetime
+    title: str | None = None
+    payer: UserBrief | None = None
+    receiver: UserBrief | None = None
+    status: str | None = None
+    splits: list[FeedSplit] = []

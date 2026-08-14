@@ -110,6 +110,12 @@ export default function GroupDetails() {
         <Link to={`/groups/${id}/expenses`}>
           <Button>Expenses</Button>
         </Link>
+        <Link to={`/groups/${id}/balances`}>
+          <Button>Balances</Button>
+        </Link>
+        <Link to={`/groups/${id}/transactions`}>
+          <Button>Transactions</Button>
+        </Link>
         <Button variant="secondary" onClick={handleLeave}>
           Leave Group
         </Button>

@@ -51,12 +51,16 @@ def test_full_user_group_expense_settlement_flow(client):
 
     settlement = client.post(
         f"/api/groups/{group_id}/settlements",
+        headers=_auth(alice_token),
         json={"payer_id": bob["id"], "receiver_id": alice["id"], "amount": "15.00"},
     )
     assert settlement.status_code == 201
     assert settlement.json()["receiver_id"] == alice["id"]
+    assert settlement.json()["status"] == "pending"
 
-    transactions = client.get(f"/api/groups/{group_id}/transactions")
+    transactions = client.get(
+        f"/api/groups/{group_id}/transactions", headers=_auth(alice_token)
+    )
     assert transactions.status_code == 200
     assert len(transactions.json()) == 2
 

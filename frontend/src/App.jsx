@@ -8,6 +8,8 @@ import GroupDetails from "./pages/GroupDetails";
 import GroupExpenses from "./pages/GroupExpenses";
 import ExpenseForm from "./pages/ExpenseForm";
 import ExpenseDetails from "./pages/ExpenseDetails";
+import GroupBalances from "./pages/GroupBalances";
+import GroupTransactions from "./pages/GroupTransactions";
 import Profile from "./pages/Profile";
 import Layout from "./components/Layout";
 
@@ -54,6 +56,8 @@ function AppRoutes() {
         <Route path="/groups/:id/expenses/new" element={<ExpenseForm />} />
         <Route path="/groups/:id/expenses/:expenseId" element={<ExpenseDetails />} />
         <Route path="/groups/:id/expenses/:expenseId/edit" element={<ExpenseForm />} />
+        <Route path="/groups/:id/balances" element={<GroupBalances />} />
+        <Route path="/groups/:id/transactions" element={<GroupTransactions />} />
         <Route path="/profile" element={<Profile />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
