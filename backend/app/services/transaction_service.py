@@ -24,6 +24,7 @@ class TransactionService:
                     date=expense.paid_at or expense.created_at,
                     title=expense.title,
                     payer=expense.payer,
+                    group=expense.group,
                     splits=[
                         FeedSplit(
                             user_id=split.user_id,
@@ -47,6 +48,7 @@ class TransactionService:
                     payer=settlement.payer,
                     receiver=settlement.receiver,
                     status=settlement.status,
+                    group=settlement.group,
                 )
             )
 

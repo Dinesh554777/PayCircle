@@ -28,6 +28,13 @@ class UserBrief(BaseModel):
     email: EmailStr
 
 
+class GroupBrief(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+
+
 class MemberAdd(BaseModel):
     user_id: int | None = None
     email: EmailStr | None = None

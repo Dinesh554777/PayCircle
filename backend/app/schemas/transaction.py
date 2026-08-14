@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-from app.schemas.group import UserBrief
+from app.schemas.group import GroupBrief, UserBrief
 
 
 class FeedSplit(BaseModel):
@@ -20,4 +20,5 @@ class FeedItem(BaseModel):
     payer: UserBrief | None = None
     receiver: UserBrief | None = None
     status: str | None = None
+    group: GroupBrief | None = None
     splits: list[FeedSplit] = []
