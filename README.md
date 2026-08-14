@@ -110,15 +110,23 @@ Create your environment file (never commit the real one):
 cp .env.example .env
 ```
 
-Start PostgreSQL (requires Docker):
+Start PostgreSQL (local native install, default):
+
+```bash
+# Create the database (if it does not exist yet)
+psql -U postgres -h localhost -p 5432 -c "CREATE DATABASE paycircle OWNER postgres;"
+```
+
+or with Docker (alternative, published on host port 5433):
 
 ```bash
 docker compose up -d db
 ```
 
-> The database is published on host port **5433** to avoid conflicts with a
-> local PostgreSQL already running on 5432. Adjust `DATABASE_URL` in
-> `backend/.env` if you use a different port.
+> By default `DATABASE_URL` points at a local PostgreSQL on port 5432. If you
+> run the Docker database instead, use
+> `postgresql://paycircle:paycircle@localhost:5433/paycircle`. Adjust the
+> credentials in `backend/.env` (never commit the real file).
 
 Apply database migrations (creates all tables):
 
