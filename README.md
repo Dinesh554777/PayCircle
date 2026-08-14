@@ -114,7 +114,7 @@ Start PostgreSQL (local native install, default):
 
 ```bash
 # Create the database (if it does not exist yet)
-psql -U postgres -h localhost -p 5432 -c "CREATE DATABASE paycircle OWNER postgres;"
+psql -U postgres -h localhost -p 5432 -c "CREATE DATABASE `"PayCircle`" OWNER postgres;"
 ```
 
 or with Docker (alternative, published on host port 5433):
