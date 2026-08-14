@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
     AI_API_KEY: str = ""
 
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+
     CORS_ORIGINS: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(

@@ -3,18 +3,33 @@ import { Link, useNavigate } from "react-router-dom";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
+import { useAuth } from "../context/AuthContext";
 
 export default function Register() {
   const navigate = useNavigate();
+  const { register } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
-    // TODO: call POST /api/auth/register once implemented
-    localStorage.setItem("paycircle_user", email);
-    navigate("/dashboard");
+    setError("");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await register(name, email, password);
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message);
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -44,8 +59,21 @@ export default function Register() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <Button type="submit" style={{ width: "100%" }}>
-            Register
+          <Input
+            label="Confirm Password"
+            name="confirmPassword"
+            type="password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+          {error && (
+            <p style={{ color: "#dc2626", fontSize: "0.875rem", marginBottom: "1rem" }}>
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={submitting} style={{ width: "100%" }}>
+            {submitting ? "Creating account..." : "Register"}
           </Button>
         </form>
         <p style={{ textAlign: "center", marginBottom: 0 }}>

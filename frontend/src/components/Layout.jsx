@@ -1,18 +1,17 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function Layout() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   function handleLogout() {
-    localStorage.removeItem("paycircle_user");
+    logout();
     navigate("/login");
   }
 
   const navItems = [
     { to: "/dashboard", label: "Dashboard" },
-    { to: "/groups", label: "Groups" },
-    { to: "/expenses", label: "Expenses" },
-    { to: "/insights", label: "AI Insights" },
     { to: "/profile", label: "Profile" },
   ];
 
@@ -24,6 +23,8 @@ export default function Layout() {
           background: "#111827",
           color: "#e5e7eb",
           padding: "1rem",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <h2 style={{ marginTop: 0 }}>PayCircle</h2>
@@ -44,6 +45,9 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+        <p style={{ fontSize: "0.875rem", color: "#9ca3af", marginTop: "1rem" }}>
+          Signed in as {user?.name || user?.email}
+        </p>
         <button
           onClick={handleLogout}
           style={{

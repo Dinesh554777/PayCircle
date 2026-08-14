@@ -7,6 +7,7 @@ venv/
 .env
 .env.local
 *.log
+server.log*
 
 # Node / React
 node_modules/
