@@ -12,6 +12,8 @@ import GroupCard from "../components/groups/GroupCard";
 import TransactionItem from "../components/transactions/TransactionItem";
 import AIInsights from "../components/AIInsights";
 import SpendingPrediction from "../components/SpendingPrediction";
+import BudgetCard from "../components/BudgetCard";
+import ActivityTimeline from "../components/ActivityTimeline";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { formatMoney } from "../utils/format";
@@ -159,6 +161,8 @@ export default function Dashboard() {
             <ChartsGrid data={data} />
           </Suspense>
 
+          <BudgetCard budget={data.analytics?.budget} />
+
           <SpendingPrediction />
 
           <AIInsights />
@@ -221,6 +225,10 @@ export default function Dashboard() {
               )}
             </Card>
           </div>
+
+          <Card title="Recent Activity" className="mb-4">
+            <ActivityTimeline items={data.recent_activity} />
+          </Card>
         </>
       ) : null}
     </>

@@ -7,6 +7,7 @@ from app.models.settlement import Settlement
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.settlement import SettlementCreate, SettlementUpdate
+from app.services.activity_service import ActivityService, ActivityType
 from app.services.base import BaseService
 from app.services.balance_service import BalanceService
 from app.services.group_service import GroupService
@@ -19,6 +20,7 @@ class SettlementService(BaseService[Settlement]):
         self.groups = GroupService(db)
         self.balances = BalanceService(db)
         self.notifications = NotificationService(db)
+        self.activities = ActivityService(db)
 
     def _member_ids(self, group_id: int) -> set[int]:
         rows = (
@@ -52,6 +54,13 @@ class SettlementService(BaseService[Settlement]):
             settlement.settled_at = data.settlement_date
         self.db.add(settlement)
         self._notify_settlement_recorded(settlement, actor)
+        self.activities.record(
+            actor.id,
+            ActivityType.SETTLEMENT_CREATED,
+            f"You recorded a ₹{settlement.amount:,.2f} settlement.",
+            group_id=group_id,
+            related_id=settlement.id,
+        )
         self.db.commit()
         self.db.refresh(settlement)
         return settlement
@@ -126,6 +135,13 @@ class SettlementService(BaseService[Settlement]):
                     related_id=settlement.id,
                 )
             self._notify_remaining_debt(settlement, actor)
+            self.activities.record(
+                actor.id,
+                ActivityType.SETTLEMENT_COMPLETED,
+                f"You completed a ₹{settlement.amount:,.2f} settlement.",
+                group_id=group_id,
+                related_id=settlement.id,
+            )
             self.db.commit()
         return settlement
 

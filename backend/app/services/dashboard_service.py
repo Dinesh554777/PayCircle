@@ -12,6 +12,8 @@ from app.models.settlement import Settlement
 from app.models.user import User
 from app.schemas.dashboard import DashboardOut, GroupSummary
 from app.schemas.transaction import FeedItem, FeedSplit
+from app.services.activity_service import ActivityService
+from app.services.analytics_service import AnalyticsService
 
 RECENT_GROUPS_LIMIT = 5
 RECENT_TRANSACTIONS_LIMIT = 10
@@ -133,6 +135,8 @@ class DashboardService:
                 )
 
         recent_transactions = self._recent_transactions(group_ids)
+        analytics = AnalyticsService(self.db).summary(user)
+        recent_activity = ActivityService(self.db).list_for_user(user, limit=10)
 
         return DashboardOut(
             group_count=len(groups),
@@ -142,6 +146,8 @@ class DashboardService:
             amount_to_receive=amount_to_receive,
             recent_groups=recent_groups,
             recent_transactions=recent_transactions,
+            analytics=analytics,
+            recent_activity=recent_activity,
         )
 
     def _recent_transactions(self, group_ids: list[int]) -> list[FeedItem]:

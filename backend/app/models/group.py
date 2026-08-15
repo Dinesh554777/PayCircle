@@ -9,6 +9,7 @@ from app.core.database import Base
 from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.activity import Activity
     from app.models.expense import Expense
     from app.models.group_member import GroupMember
     from app.models.notification import Notification
@@ -31,3 +32,4 @@ class Group(TimestampMixin, Base):
     settlements: Mapped[list[Settlement]] = relationship(back_populates="group")
     transactions: Mapped[list[Transaction]] = relationship(back_populates="group")
     notifications: Mapped[list[Notification]] = relationship(back_populates="group")
+    activities: Mapped[list[Activity]] = relationship(back_populates="group")

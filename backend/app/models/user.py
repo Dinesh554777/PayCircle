@@ -9,6 +9,7 @@ from app.core.database import Base
 from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.activity import Activity
     from app.models.expense import Expense
     from app.models.expense_split import ExpenseSplit
     from app.models.group import Group
@@ -44,3 +45,4 @@ class User(TimestampMixin, Base):
     )
     transactions: Mapped[list[Transaction]] = relationship(back_populates="user")
     notifications: Mapped[list[Notification]] = relationship(back_populates="user")
+    activities: Mapped[list[Activity]] = relationship(back_populates="user")

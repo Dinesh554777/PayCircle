@@ -22,6 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import Avatar from "./common/Avatar";
 import Dropdown from "./common/Dropdown";
+import GlobalSearch from "./GlobalSearch";
 import NotificationBell from "./NotificationBell";
 
 function activeGroupKey(userId) {
@@ -166,6 +167,10 @@ export default function Layout() {
             <Menu aria-hidden="true" />
           </button>
           <h1 className="header-title">{title}</h1>
+
+          <div className="header-search">
+            <GlobalSearch />
+          </div>
 
           <div className="header-actions">
             <button

@@ -4,11 +4,9 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.models.expense import Expense
-from app.models.group import Group
-from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.prediction import PredictionMonth, SpendingPredictionOut
+from app.services.analytics_service import AnalyticsService
 from app.services.insights_service import MONTH_LABELS
 
 MIN_MONTHS_REQUIRED = 2
@@ -68,39 +66,9 @@ class PredictionService:
 
     def _monthly_totals(self, user: User) -> dict[tuple[int, int], Decimal]:
         """Sum the user's share of expenses per month (months with data only)."""
-        group_ids = [
-            group.id
-            for group in (
-                self.db.query(Group)
-                .join(GroupMember, GroupMember.group_id == Group.id)
-                .filter(GroupMember.user_id == user.id)
-                .all()
-            )
-        ]
-        if not group_ids:
-            return {}
-
-        expenses = (
-            self.db.query(Expense)
-            .filter(Expense.group_id.in_(group_ids))
-            .order_by(Expense.paid_at, Expense.created_at)
-            .all()
-        )
-
         totals: dict[tuple[int, int], Decimal] = defaultdict(lambda: Decimal("0.00"))
-        for expense in expenses:
-            share = sum(
-                (
-                    split.amount
-                    for split in expense.splits
-                    if split.user_id == user.id
-                ),
-                Decimal("0.00"),
-            )
-            if share <= 0:
-                continue
-            date = expense.paid_at or expense.created_at
-            totals[(date.year, date.month)] += share
+        for row in AnalyticsService(self.db).expense_rows(user):
+            totals[(row.date.year, row.date.month)] += row.share
         return totals
 
     @staticmethod

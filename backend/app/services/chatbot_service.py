@@ -1,21 +1,19 @@
 """Chatbot service that answers questions using only the authenticated user's data."""
 from datetime import datetime
-from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ai.chatbot import (
+from app.ai.chatbot import (
     EXPENSE_KEYWORDS,
     NO_DATA_MESSAGE,
     UNRELATED_MESSAGE,
     Chatbot,
 )
-from app.models.expense import Expense
 from app.models.group import Group
 from app.models.group_member import GroupMember
 from app.models.user import User
+from app.services.analytics_service import AnalyticsService
 from app.services.balance_service import BalanceService
 from app.services.insights_service import InsightsService
 from app.services.prediction_service import PredictionService
@@ -116,35 +114,20 @@ class ChatbotService:
         ]
 
     def _recent_expenses(self, user: User, limit: int = RECENT_EXPENSES_LIMIT) -> list[dict]:
-        group_ids = self._user_group_ids(user)
-        if not group_ids:
-            return []
-        expenses = (
-            self.db.query(Expense)
-            .filter(Expense.group_id.in_(group_ids))
-            .order_by(func.coalesce(Expense.paid_at, Expense.created_at).desc())
-            .all()
+        rows = sorted(
+            AnalyticsService(self.db).expense_rows(user),
+            key=lambda row: row.date,
+            reverse=True,
         )
         items: list[dict] = []
-        for expense in expenses:
-            share = sum(
-                (
-                    split.amount
-                    for split in expense.splits
-                    if split.user_id == user.id
-                ),
-                Decimal("0.00"),
-            )
-            if share <= 0:
-                continue
-            date = expense.paid_at or expense.created_at
-            category = expense.category or expense.ai_category or "Other"
+        for row in rows:
+            expense = row.expense
             items.append(
                 {
                     "title": expense.title or "Expense",
-                    "amount": share,
-                    "category": category,
-                    "date": date.date().isoformat() if date else "",
+                    "amount": row.share,
+                    "category": row.category,
+                    "date": row.date.date().isoformat() if row.date else "",
                     "group": expense.group.name,
                     "paid_by": expense.payer.name,
                 }

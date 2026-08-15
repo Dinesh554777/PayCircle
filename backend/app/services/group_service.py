@@ -5,6 +5,7 @@ from app.models.group import Group
 from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.group import GroupCreate
+from app.services.activity_service import ActivityService, ActivityType
 from app.services.base import BaseService
 from app.services.notification_service import NotificationService, NotificationType
 
@@ -13,12 +14,20 @@ class GroupService(BaseService[Group]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, Group)
         self.notifications = NotificationService(db)
+        self.activities = ActivityService(db)
 
     def create_group(self, data: GroupCreate, creator: User) -> Group:
         group = self.create(
             name=data.name, description=data.description, created_by=creator.id
         )
         self.db.add(GroupMember(group_id=group.id, user_id=creator.id, role="admin"))
+        self.activities.record(
+            creator.id,
+            ActivityType.GROUP_CREATED,
+            f"You created group '{group.name}'.",
+            group_id=group.id,
+            related_id=group.id,
+        )
         self.db.commit()
         return group
 
@@ -75,6 +84,13 @@ class GroupService(BaseService[Group]):
             group_id=group.id,
             related_id=group.id,
         )
+        self.activities.record(
+            actor.id,
+            ActivityType.MEMBER_ADDED,
+            f"You added {user.name} to group '{group.name}'.",
+            group_id=group.id,
+            related_id=member.id,
+        )
         self.db.commit()
         self.db.refresh(member)
         return member
@@ -113,6 +129,13 @@ class GroupService(BaseService[Group]):
             group_id=group.id,
             related_id=group.id,
         )
+        self.activities.record(
+            actor.id,
+            ActivityType.MEMBER_REMOVED,
+            f"You removed {removed_user.name if removed_user else 'a member'} from group '{group.name}'.",
+            group_id=group.id,
+            related_id=user_id,
+        )
         self.db.commit()
 
     def leave_group(self, group_id: int, user: User) -> None:
@@ -123,6 +146,13 @@ class GroupService(BaseService[Group]):
                 status_code=404, detail="You are not a member of this group"
             )
         self.db.delete(membership)
+        self.activities.record(
+            user.id,
+            ActivityType.MEMBER_LEFT,
+            f"You left group '{group.name}'.",
+            group_id=group.id,
+            related_id=group.id,
+        )
         for member in self.get_members(group.id):
             if member.user_id == user.id:
                 continue

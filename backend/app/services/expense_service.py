@@ -3,13 +3,14 @@ from decimal import ROUND_DOWN, Decimal
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ai.categorizer import GroqCategorizer
+from app.ai.categorization import GroqCategorizer
 from app.models.expense import Expense
 from app.models.expense_split import ExpenseSplit
 from app.models.group import Group
 from app.models.group_member import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.activity_service import ActivityService, ActivityType
 from app.services.base import BaseService
 from app.services.balance_service import BalanceService
 from app.services.group_service import GroupService
@@ -22,6 +23,7 @@ class ExpenseService(BaseService[Expense]):
         self.groups = GroupService(db)
         self.balances = BalanceService(db)
         self.notifications = NotificationService(db)
+        self.activities = ActivityService(db)
         self.categorizer = categorizer or GroqCategorizer()
 
     def _resolve_category(self, data) -> tuple[str | None, str | None, float | None]:
@@ -177,6 +179,13 @@ class ExpenseService(BaseService[Expense]):
                 description=f"Expense: {data.title}",
             )
         )
+        self.activities.record(
+            actor.id,
+            ActivityType.EXPENSE_ADDED,
+            f"You added expense '{data.title}' of ₹{data.amount:,.2f} in group '{group.name}'.",
+            group_id=group.id,
+            related_id=expense.id,
+        )
         self._notify_expense_added(group, expense, actor)
         self._notify_payment_reminders(group, actor)
         self.db.commit()
@@ -263,13 +272,27 @@ class ExpenseService(BaseService[Expense]):
         for user_id, amount in computed:
             expense.splits.append(ExpenseSplit(user_id=user_id, amount=amount))
 
+        self.activities.record(
+            actor.id,
+            ActivityType.EXPENSE_EDITED,
+            f"You edited expense '{expense.title}' in group '{group.name}'.",
+            group_id=group.id,
+            related_id=expense.id,
+        )
         self.db.commit()
         self.db.refresh(expense)
         return expense
 
     def delete_expense(self, group_id: int, expense_id: int, actor: User) -> None:
-        self.groups.get_group_for_user(group_id, actor)
+        group = self.groups.get_group_for_user(group_id, actor)
         expense = self.get_group_expense(group_id, expense_id, actor)
+        self.activities.record(
+            actor.id,
+            ActivityType.EXPENSE_DELETED,
+            f"You deleted expense '{expense.title}' from group '{group.name}'.",
+            group_id=group_id,
+            related_id=expense.id,
+        )
         self.db.query(ExpenseSplit).filter(ExpenseSplit.expense_id == expense.id).delete()
         self.db.delete(expense)
         self.db.commit()

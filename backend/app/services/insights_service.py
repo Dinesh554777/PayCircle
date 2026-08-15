@@ -1,13 +1,9 @@
 """AI spending insights and personalized suggestions based on the user's expenses."""
 from collections import defaultdict
-from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.models.expense import Expense
-from app.models.group import Group
-from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.insights import (
     CategorySummary,
@@ -16,6 +12,7 @@ from app.schemas.insights import (
     SpendingInsightsOut,
     TopExpense,
 )
+from app.services.analytics_service import AnalyticsService, ExpenseRow
 
 MONTH_LABELS = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -37,7 +34,7 @@ class InsightsService:
         self.db = db
 
     def get_insights(self, user: User) -> SpendingInsightsOut:
-        rows = self._user_expense_rows(user)
+        rows = AnalyticsService(self.db).expense_rows(user)
 
         if not rows:
             return SpendingInsightsOut(
@@ -61,7 +58,8 @@ class InsightsService:
         monthly_counts: dict[tuple[int, int], int] = defaultdict(int)
 
         largest = rows[0]
-        for expense, share, date, category in rows:
+        for row in rows:
+            expense, share, date, category = row.expense, row.share, row.date, row.category
             category_totals[category] += share
             category_counts[category] += 1
             key = (date.year, date.month)
@@ -156,50 +154,6 @@ class InsightsService:
             suggestions=suggestions,
         )
 
-    def _user_expense_rows(
-        self, user: User
-    ) -> list[tuple[Expense, Decimal, datetime, str]]:
-        """Return (expense, user share, date, category) for the user's expenses.
-
-        Only expenses the user is part of (has a positive split share) count,
-        so insights reflect the user's own spending and never invent data.
-        """
-        group_ids = [
-            group.id
-            for group in (
-                self.db.query(Group)
-                .join(GroupMember, GroupMember.group_id == Group.id)
-                .filter(GroupMember.user_id == user.id)
-                .all()
-            )
-        ]
-        if not group_ids:
-            return []
-
-        expenses = (
-            self.db.query(Expense)
-            .filter(Expense.group_id.in_(group_ids))
-            .order_by(Expense.paid_at, Expense.created_at)
-            .all()
-        )
-
-        rows: list[tuple[Expense, Decimal, datetime, str]] = []
-        for expense in expenses:
-            share = sum(
-                (
-                    split.amount
-                    for split in expense.splits
-                    if split.user_id == user.id
-                ),
-                Decimal("0.00"),
-            )
-            if share <= 0:
-                continue
-            date = expense.paid_at or expense.created_at
-            category = (expense.category or expense.ai_category or "Other").strip() or "Other"
-            rows.append((expense, share, date, category))
-        return rows
-
     @staticmethod
     def _month_key(year: int, month: int) -> str:
         return f"{year:04d}-{month:02d}"
@@ -231,7 +185,7 @@ class InsightsService:
 
     def _category_increases(
         self,
-        rows: list[tuple[Expense, Decimal, datetime, str]],
+        rows: list[ExpenseRow],
         last_key: tuple[int, int] | None,
         prev_key: tuple[int, int] | None,
     ) -> dict[str, tuple[Decimal, Decimal]]:
@@ -240,9 +194,9 @@ class InsightsService:
 
         def totals_for(key: tuple[int, int]) -> dict[str, Decimal]:
             totals: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
-            for _, share, date, category in rows:
-                if (date.year, date.month) == key:
-                    totals[category] += share
+            for row in rows:
+                if (row.date.year, row.date.month) == key:
+                    totals[row.category] += row.share
             return totals
 
         last_totals = totals_for(last_key)
@@ -308,7 +262,7 @@ class InsightsService:
 
     def _build_suggestions(
         self,
-        rows: list[tuple[Expense, Decimal, datetime, str]],
+        rows: list[ExpenseRow],
         category_totals: dict[str, Decimal],
         total: Decimal,
         top_category: str | None,
@@ -329,7 +283,7 @@ class InsightsService:
                     "increase is expected."
                 )
 
-            month_keys = sorted({(row[2].year, row[2].month) for row in rows})
+            month_keys = sorted({(row.date.year, row.date.month) for row in rows})
             if len(month_keys) >= 2:
                 increases = self._category_increases(
                     rows, month_keys[-1], month_keys[-2]

@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
+from app.schemas.activity import ActivityRead
+from app.schemas.analytics import AnalyticsOut
 from app.schemas.transaction import FeedItem
 
 
@@ -24,3 +26,5 @@ class DashboardOut(BaseModel):
     amount_to_receive: Decimal
     recent_groups: list[GroupSummary]
     recent_transactions: list[FeedItem]
+    analytics: AnalyticsOut
+    recent_activity: list[ActivityRead]
