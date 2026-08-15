@@ -8,6 +8,7 @@ from app.routes import (
     expenses,
     groups,
     health,
+    insights,
     settlements,
     transactions,
     users,
@@ -25,3 +26,4 @@ api_router.include_router(settlements.router, tags=["settlements"])
 api_router.include_router(transactions.router, tags=["transactions"])
 api_router.include_router(balances.router, tags=["balances"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(insights.router, prefix="/ai", tags=["ai"])

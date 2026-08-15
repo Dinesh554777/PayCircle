@@ -191,3 +191,4 @@ the main user → group → expense → settlement → transaction flow.
 | POST   | `/api/groups/{group_id}/settlements` | Record a settlement         |
 | GET    | `/api/groups/{group_id}/settlements` | List a group's settlements   |
 | GET    | `/api/groups/{group_id}/transactions` | List a group's transaction history |
+| GET    | `/api/ai/insights`                    | AI spending insights & personalized suggestions |
