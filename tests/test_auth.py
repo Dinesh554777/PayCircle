@@ -25,9 +25,18 @@ def test_register_returns_token_and_user(client):
 def test_register_password_is_hashed(client):
     response = _register(client)
     assert response.status_code == 201
-    user_id = response.json()["user"]["id"]
-    stored = client.get(f"/api/users/{user_id}").json()
+    data = response.json()
+    user_id = data["user"]["id"]
+    stored = client.get(
+        f"/api/users/{user_id}", headers=_auth_header(data["access_token"])
+    ).json()
     assert "secret123" not in str(stored)
+
+
+def test_users_directory_requires_auth(client):
+    _register(client)
+    assert client.get("/api/users").status_code == 401
+    assert client.get("/api/users/1").status_code == 401
 
 
 def test_register_duplicate_email_rejected(client):

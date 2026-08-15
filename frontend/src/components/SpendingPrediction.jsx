@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import Card from "./common/Card";
 import { apiRequest } from "../api/client";
-
-function formatMoney(value) {
-  const num = Number(value);
-  return `₹${num.toFixed(2)}`;
-}
+import { formatMoney } from "../utils/format";
 
 export default function SpendingPrediction() {
   const [data, setData] = useState(null);

@@ -36,6 +36,16 @@ class AdminService:
 
     def list_users(self) -> list[AdminUserRead]:
         users = self.db.query(User).order_by(User.created_at.desc()).all()
+        groups_by_user = dict(
+            self.db.query(GroupMember.user_id, func.count(GroupMember.id))
+            .group_by(GroupMember.user_id)
+            .all()
+        )
+        expenses_by_user = dict(
+            self.db.query(ExpenseSplit.user_id, func.count(ExpenseSplit.id))
+            .group_by(ExpenseSplit.user_id)
+            .all()
+        )
         return [
             AdminUserRead(
                 id=user.id,
@@ -44,28 +54,26 @@ class AdminService:
                 is_admin=user.is_admin,
                 is_active=user.is_active,
                 created_at=user.created_at,
-                groups_count=self._groups_count(user.id),
-                expenses_count=self._expenses_count(user.id),
+                groups_count=groups_by_user.get(user.id, 0),
+                expenses_count=expenses_by_user.get(user.id, 0),
             )
             for user in users
         ]
 
     def list_groups(self) -> list[AdminGroupRead]:
         groups = self.db.query(Group).order_by(Group.created_at.desc()).all()
+        members_by_group = dict(
+            self.db.query(GroupMember.group_id, func.count(GroupMember.id))
+            .group_by(GroupMember.group_id)
+            .all()
+        )
+        expenses_by_group = dict(
+            self.db.query(Expense.group_id, func.count(Expense.id))
+            .group_by(Expense.group_id)
+            .all()
+        )
         result = []
         for group in groups:
-            member_count = (
-                self.db.query(func.count(GroupMember.id))
-                .filter(GroupMember.group_id == group.id)
-                .scalar()
-                or 0
-            )
-            expense_count = (
-                self.db.query(func.count(Expense.id))
-                .filter(Expense.group_id == group.id)
-                .scalar()
-                or 0
-            )
             result.append(
                 AdminGroupRead(
                     id=group.id,
@@ -73,8 +81,8 @@ class AdminService:
                     description=group.description,
                     created_by=group.created_by,
                     created_at=group.created_at,
-                    member_count=member_count,
-                    expense_count=expense_count,
+                    member_count=members_by_group.get(group.id, 0),
+                    expense_count=expenses_by_group.get(group.id, 0),
                 )
             )
         return result

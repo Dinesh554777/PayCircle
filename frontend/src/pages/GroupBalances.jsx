@@ -4,14 +4,7 @@ import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
 import { apiRequest } from "../api/client";
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString() : "";
-}
-
-function money(value) {
-  return `₹${parseFloat(value).toFixed(2)}`;
-}
+import { CURRENCY_SYMBOL, formatDate, formatMoney } from "../utils/format";
 
 export default function GroupBalances() {
   const { id } = useParams();
@@ -100,6 +93,11 @@ export default function GroupBalances() {
     id: m.user_id,
     name: m.user?.name || `User ${m.user_id}`,
   }));
+  const canSubmit =
+    Boolean(payerId) &&
+    Boolean(receiverId) &&
+    Number(payerId) !== Number(receiverId) &&
+    Number(amount) > 0;
 
   return (
     <div style={{ maxWidth: 640 }}>
@@ -114,40 +112,44 @@ export default function GroupBalances() {
       ) : (
         <>
           <Card title="Member balances">
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {balances.balances.map((item) => {
-                const net = parseFloat(item.net_balance);
-                return (
-                  <li
-                    key={item.user_id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "0.5rem 0",
-                      borderBottom: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <span>
-                      <strong>{item.user?.name || `User ${item.user_id}`}</strong>
-                      <span style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                        {" "}
-                        &middot; paid {money(item.total_paid)} / owes{" "}
-                        {money(item.total_owed)}
-                      </span>
-                    </span>
-                    <span
+            {balances.balances.length === 0 ? (
+              <p style={{ marginBottom: 0 }}>No member balances to show.</p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {balances.balances.map((item) => {
+                  const net = parseFloat(item.net_balance);
+                  return (
+                    <li
+                      key={item.user_id}
                       style={{
-                        fontWeight: 600,
-                        color: net > 0 ? "#15803d" : net < 0 ? "#dc2626" : "#6b7280",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "0.5rem 0",
+                        borderBottom: "1px solid #e5e7eb",
                       }}
                     >
-                      {net > 0 ? "+" : ""}
-                      {money(item.net_balance)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+                      <span>
+                        <strong>{item.user?.name || `User ${item.user_id}`}</strong>
+                        <span style={{ color: "#6b7280", fontSize: "0.875rem" }}>
+                          {" "}
+                          &middot; paid {formatMoney(item.total_paid)} / owes{" "}
+                          {formatMoney(item.total_owed)}
+                        </span>
+                      </span>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: net > 0 ? "#15803d" : net < 0 ? "#dc2626" : "#6b7280",
+                        }}
+                      >
+                        {net > 0 ? "+" : ""}
+                        {formatMoney(item.net_balance)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </Card>
 
           <Card title="Who owes whom">
@@ -159,7 +161,7 @@ export default function GroupBalances() {
                   <li key={`${transfer.from_user_id}-${transfer.to_user_id}`}>
                     <strong>{transfer.from_user?.name}</strong> owes{" "}
                     <strong>{transfer.to_user?.name}</strong>{" "}
-                    <strong>{money(transfer.amount)}</strong>
+                    <strong>{formatMoney(transfer.amount)}</strong>
                   </li>
                 ))}
               </ul>
@@ -168,30 +170,34 @@ export default function GroupBalances() {
 
           <Card title="Record a settlement">
             <form onSubmit={handleSettlement}>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <div style={{ flex: 1 }}>
+              <div
+                style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+              >
+                <div style={{ flex: 1, minWidth: 160 }}>
                   <Input
                     label="Who pays"
                     name="payerId"
                     type="select"
+                    required
                     options={memberOptions}
                     value={payerId}
                     onChange={(e) => setPayerId(e.target.value)}
                   />
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 160 }}>
                   <Input
                     label="Who receives"
                     name="receiverId"
                     type="select"
+                    required
                     options={memberOptions}
                     value={receiverId}
                     onChange={(e) => setReceiverId(e.target.value)}
                   />
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 160 }}>
                   <Input
-                    label="Amount (₹)"
+                    label={`Amount (${CURRENCY_SYMBOL})`}
                     name="amount"
                     type="number"
                     step="0.01"
@@ -202,7 +208,13 @@ export default function GroupBalances() {
                   />
                 </div>
               </div>
-              <Button type="submit" disabled={saving}>
+              {Number(payerId) > 0 &&
+                Number(payerId) === Number(receiverId) && (
+                  <p style={{ color: "#dc2626", fontSize: "0.875rem" }}>
+                    Payer and receiver must be different users.
+                  </p>
+                )}
+              <Button type="submit" disabled={saving || !canSubmit}>
                 {saving ? "Saving..." : "Record Settlement"}
               </Button>
             </form>
@@ -227,7 +239,7 @@ export default function GroupBalances() {
                     <div>
                       <strong>{settlement.payer?.name}</strong> paid{" "}
                       <strong>{settlement.receiver?.name}</strong>{" "}
-                      <strong>{money(settlement.amount)}</strong>
+                      <strong>{formatMoney(settlement.amount)}</strong>
                       <div style={{ color: "#6b7280", fontSize: "0.875rem" }}>
                         {formatDate(settlement.settlement_date)} &middot;{" "}
                         <span

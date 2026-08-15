@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import Card from "./common/Card";
 import { apiRequest } from "../api/client";
-
-function formatMoney(value) {
-  const num = Number(value);
-  return `₹${num.toFixed(2)}`;
-}
+import { formatMoney } from "../utils/format";
 
 const BAR_COLORS = [
   "#4f46e5",

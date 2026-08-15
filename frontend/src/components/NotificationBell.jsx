@@ -1,16 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "../api/client";
-
-function formatDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+import { formatDateTime } from "../utils/format";
 
 export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -85,6 +75,7 @@ export default function NotificationBell() {
   return (
     <div style={{ position: "relative" }} ref={ref}>
       <button
+        type="button"
         onClick={toggle}
         aria-label="Notifications"
         style={{
@@ -98,7 +89,7 @@ export default function NotificationBell() {
           cursor: "pointer",
         }}
       >
-        🔔
+        <span aria-hidden="true">🔔</span>
         {unreadCount > 0 && (
           <span
             style={{
@@ -129,7 +120,7 @@ export default function NotificationBell() {
             position: "absolute",
             right: 0,
             top: "calc(100% + 8px)",
-            width: 360,
+            width: "min(360px, calc(100vw - 32px))",
             maxHeight: 420,
             overflowY: "auto",
             background: "#fff",
@@ -151,6 +142,7 @@ export default function NotificationBell() {
             <strong>Notifications</strong>
             {unreadItems.length > 0 && (
               <button
+                type="button"
                 onClick={markAllRead}
                 style={{
                   border: "none",
@@ -175,7 +167,21 @@ export default function NotificationBell() {
               {notifications.map((item) => (
                 <li
                   key={item.id}
+                  role={item.is_read ? undefined : "button"}
+                  tabIndex={item.is_read ? undefined : 0}
+                  aria-label={
+                    item.is_read ? undefined : `Mark "${item.title}" as read`
+                  }
                   onClick={() => !item.is_read && markRead(item.id)}
+                  onKeyDown={(event) => {
+                    if (
+                      !item.is_read &&
+                      (event.key === "Enter" || event.key === " ")
+                    ) {
+                      event.preventDefault();
+                      markRead(item.id);
+                    }
+                  }}
                   style={{
                     padding: "0.6rem 1rem",
                     borderBottom: "1px solid #e5e7eb",
@@ -192,7 +198,7 @@ export default function NotificationBell() {
                   >
                     <strong style={{ fontSize: "0.875rem" }}>{item.title}</strong>
                     <span style={{ color: "#9ca3af", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
-                      {formatDate(item.created_at)}
+                      {formatDateTime(item.created_at)}
                     </span>
                   </div>
                   {item.message && (

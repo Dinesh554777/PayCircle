@@ -5,10 +5,7 @@ import Input from "../components/common/Input";
 import Button from "../components/common/Button";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString() : "";
-}
+import { formatDate } from "../utils/format";
 
 export default function GroupDetails() {
   const { id } = useParams();
@@ -106,7 +103,14 @@ export default function GroupDetails() {
         Created by {group.creator?.name} on {formatDate(group.created_at)}
       </p>
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          flexWrap: "wrap",
+          marginBottom: "1rem",
+        }}
+      >
         <Link to={`/groups/${id}/expenses`}>
           <Button>Expenses</Button>
         </Link>
@@ -180,6 +184,7 @@ export default function GroupDetails() {
               </div>
               {canRemove(member) && (
                 <button
+                  type="button"
                   onClick={() => handleRemoveMember(member.user_id, member.user?.name)}
                   style={{
                     border: "none",

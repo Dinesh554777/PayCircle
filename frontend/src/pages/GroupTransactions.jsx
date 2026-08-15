@@ -2,14 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Card from "../components/common/Card";
 import { apiRequest } from "../api/client";
-
-function formatDateTime(value) {
-  return value ? new Date(value).toLocaleString() : "";
-}
-
-function money(value) {
-  return `₹${parseFloat(value).toFixed(2)}`;
-}
+import { formatDateTime, formatMoney } from "../utils/format";
 
 export default function GroupTransactions() {
   const { id } = useParams();
@@ -65,7 +58,7 @@ export default function GroupTransactions() {
               }}
             >
               <div>
-                <strong style={{ fontSize: "1.1rem" }}>{money(item.amount)}</strong>
+                <strong style={{ fontSize: "1.1rem" }}>{formatMoney(item.amount)}</strong>
                 <span
                   style={{
                     marginLeft: "0.5rem",
@@ -115,7 +108,7 @@ export default function GroupTransactions() {
                       }}
                     >
                       <span>{split.user?.name}</span>
-                      <span>{money(split.amount)}</span>
+                      <span>{formatMoney(split.amount)}</span>
                     </li>
                   ))}
                 </ul>

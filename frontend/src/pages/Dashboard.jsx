@@ -7,15 +7,7 @@ import AIInsights from "../components/AIInsights";
 import SpendingPrediction from "../components/SpendingPrediction";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-
-function formatMoney(value) {
-  const num = Number(value);
-  return `₹${num.toFixed(2)}`;
-}
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString() : "";
-}
+import { formatDate, formatMoney } from "../utils/format";
 
 export default function Dashboard() {
   const navigate = useNavigate();

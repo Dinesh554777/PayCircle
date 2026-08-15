@@ -126,6 +126,7 @@ export default function Chat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about your expenses..."
+            aria-label="Ask about your expenses"
             style={{
               flex: 1,
               padding: "0.6rem",
@@ -147,8 +148,10 @@ export default function Chat() {
           {EXAMPLE_QUESTIONS.map((question) => (
             <button
               key={question}
+              type="button"
               onClick={() => send(question)}
               disabled={sending}
+              aria-label={`Ask: ${question}`}
               style={{
                 background: "#fff",
                 border: "1px solid #d1d5db",

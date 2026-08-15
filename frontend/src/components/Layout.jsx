@@ -24,8 +24,8 @@ export default function Layout() {
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <aside
+        className="layout-sidebar"
         style={{
-          width: 220,
           background: "#111827",
           color: "#e5e7eb",
           padding: "1rem",
@@ -55,6 +55,7 @@ export default function Layout() {
           Signed in as {user?.name || user?.email}
         </p>
         <button
+          type="button"
           onClick={handleLogout}
           style={{
             marginTop: "auto",
@@ -71,7 +72,7 @@ export default function Layout() {
           Logout
         </button>
       </aside>
-      <main style={{ flex: 1, padding: "2rem", position: "relative" }}>
+      <main className="layout-main">
         <div
           style={{
             position: "absolute",

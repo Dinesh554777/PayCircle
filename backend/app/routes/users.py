@@ -16,7 +16,10 @@ def create_user(data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=list[UserRead])
-def list_users(db: Session = Depends(get_db)):
+def list_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return UserService(db).list_all()
 
 
@@ -35,5 +38,9 @@ def update_current_profile(
 
 
 @router.get("/{user_id}", response_model=UserRead)
-def get_user(user_id: int, db: Session = Depends(get_db)):
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return UserService(db).get_by_id(user_id)

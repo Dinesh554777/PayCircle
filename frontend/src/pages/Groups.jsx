@@ -4,10 +4,7 @@ import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
 import { apiRequest } from "../api/client";
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString() : "";
-}
+import { formatDate } from "../utils/format";
 
 export default function Groups() {
   const [groups, setGroups] = useState([]);
@@ -16,14 +13,16 @@ export default function Groups() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [creating, setCreating] = useState(false);
 
   async function loadGroups() {
     try {
       const data = await apiRequest("/groups", { auth: true });
       setGroups(data);
+      setLoadError("");
     } catch (err) {
-      setError(err.message);
+      setLoadError(err.message);
     } finally {
       setLoading(false);
     }
@@ -99,6 +98,11 @@ export default function Groups() {
 
       {loading ? (
         <p>Loading...</p>
+      ) : loadError ? (
+        <Card title="Something went wrong">
+          <p style={{ color: "#dc2626" }}>{loadError}</p>
+          <Button onClick={loadGroups}>Retry</Button>
+        </Card>
       ) : groups.length === 0 ? (
         <Card title="No groups yet">
           <p>Create a group to start tracking shared expenses with friends.</p>

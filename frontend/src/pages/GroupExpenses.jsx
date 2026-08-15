@@ -3,10 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
 import { apiRequest } from "../api/client";
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString() : "";
-}
+import { formatDate, formatMoney } from "../utils/format";
 
 export default function GroupExpenses() {
   const { id } = useParams();
@@ -73,7 +70,7 @@ export default function GroupExpenses() {
               }}
             >
               <div>
-                <strong style={{ fontSize: "1.1rem" }}>₹{expense.amount}</strong>
+                <strong style={{ fontSize: "1.1rem" }}>{formatMoney(expense.amount)}</strong>
                 <span
                   style={{
                     marginLeft: "0.5rem",

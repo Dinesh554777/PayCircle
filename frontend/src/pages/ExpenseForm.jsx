@@ -4,6 +4,7 @@ import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
 import { apiRequest } from "../api/client";
+import { CURRENCY_SYMBOL } from "../utils/format";
 
 const METHODS = [
   { value: "equal", label: "Equal Split" },
@@ -31,6 +32,7 @@ export default function ExpenseForm() {
 
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -93,7 +95,10 @@ export default function ExpenseForm() {
           setSelected(memberOptions.map((m) => m.id));
         }
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        setLoadError(err.message);
+        setError(err.message);
+      })
       .finally(() => setLoading(false));
   }, [id, expenseId, isEdit]);
 
@@ -208,6 +213,26 @@ export default function ExpenseForm() {
 
   if (loading) return <p>Loading...</p>;
 
+  if (loadError) {
+    return (
+      <div>
+        <Link to={`/groups/${id}/expenses`}>&larr; Back to expenses</Link>
+        <h1>{isEdit ? "Edit Expense" : "Add Expense"}</h1>
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#dc2626",
+            borderRadius: "0.5rem",
+            padding: "1rem",
+          }}
+        >
+          Could not load this page: {loadError}
+        </div>
+      </div>
+    );
+  }
+
   const equalShare = selected.length > 0
     ? (Math.floor((amountNum / selected.length) * 100) / 100).toFixed(2)
     : "0.00";
@@ -233,7 +258,7 @@ export default function ExpenseForm() {
             onChange={(e) => setDescription(e.target.value)}
           />
           <Input
-            label="Amount (₹)"
+            label={`Amount (${CURRENCY_SYMBOL})`}
             name="amount"
             type="number"
             step="0.01"
@@ -281,7 +306,7 @@ export default function ExpenseForm() {
         </Card>
 
         <Card title="Split">
-          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
             {METHODS.map((m) => (
               <label key={m.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                 <input
@@ -299,7 +324,7 @@ export default function ExpenseForm() {
           {splitMethod === "equal" && (
             <div>
               <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                Each selected member pays ₹{equalShare}
+                Each selected member pays {CURRENCY_SYMBOL}{equalShare}
               </p>
               {members.map((member) => (
                 <label
@@ -358,7 +383,7 @@ export default function ExpenseForm() {
 
           <p style={{ color: totalValid ? "#15803d" : "#dc2626", fontWeight: 600 }}>
             {splitMethod === "percentage" ? "Percentage" : "Split"} total: {splitTotal.toFixed(2)}{" "}
-            {splitMethod === "percentage" ? "%" : `of ₹${amountNum.toFixed(2)}`}
+            {splitMethod === "percentage" ? "%" : `of ${CURRENCY_SYMBOL}${amountNum.toFixed(2)}`}
             {!totalValid && " — totals don't match"}
           </p>
         </Card>

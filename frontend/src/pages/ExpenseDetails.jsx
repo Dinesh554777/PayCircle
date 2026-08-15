@@ -3,10 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
 import { apiRequest } from "../api/client";
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString() : "";
-}
+import { formatDate, formatMoney } from "../utils/format";
 
 export default function ExpenseDetails() {
   const { id, expenseId } = useParams();
@@ -65,7 +62,7 @@ export default function ExpenseDetails() {
 
       <Card title="Overview">
         <p>
-          Amount: <strong>₹{expense.amount}</strong>
+          Amount: <strong>{formatMoney(expense.amount)}</strong>
         </p>
         <p>Paid by: {expense.paid_by_user?.name}</p>
         <p>Date: {formatDate(expense.expense_date || expense.created_at)}</p>
@@ -106,7 +103,7 @@ export default function ExpenseDetails() {
               }}
             >
               <span>{split.user?.name}</span>
-              <strong>₹{split.amount}</strong>
+              <strong>{formatMoney(split.amount)}</strong>
             </li>
           ))}
         </ul>
