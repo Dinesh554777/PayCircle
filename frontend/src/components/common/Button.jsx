@@ -1,23 +1,36 @@
-export default function Button({ children, type = "button", variant = "primary", ...props }) {
-  const styles = {
-    primary: { background: "#4f46e5", color: "#fff" },
-    secondary: { background: "#e5e7eb", color: "#1f2937" },
-    danger: { background: "#dc2626", color: "#fff" },
-  };
+export default function Button({
+  children,
+  variant = "primary",
+  size,
+  type = "button",
+  loading = false,
+  disabled = false,
+  icon: Icon,
+  className = "",
+  ...props
+}) {
+  const classes = [
+    "btn",
+    variant !== "primary" ? `btn-${variant}` : "btn-primary",
+    size === "sm" ? "btn-sm" : size === "lg" ? "btn-lg" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <button
       type={type}
-      style={{
-        padding: "0.6rem 1rem",
-        border: "none",
-        borderRadius: "0.375rem",
-        cursor: "pointer",
-        fontWeight: 600,
-        ...styles[variant],
-      }}
+      className={classes}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
+      {loading ? (
+        <span className="btn-spinner" aria-hidden="true" />
+      ) : (
+        Icon && <Icon aria-hidden="true" />
+      )}
       {children}
     </button>
   );

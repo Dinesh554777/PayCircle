@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Bell, CheckCheck, Settings } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { formatDateTime } from "../utils/format";
+import Badge from "./common/Badge";
 
 export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -8,6 +11,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const ref = useRef(null);
+  const navigate = useNavigate();
 
   function refreshCount() {
     apiRequest("/notifications/unread-count", { auth: true })
@@ -50,9 +54,7 @@ export default function NotificationBell() {
     apiRequest(`/notifications/${id}/read`, { method: "PATCH", auth: true })
       .then(() => {
         setNotifications((items) =>
-          items.map((item) =>
-            item.id === id ? { ...item, is_read: true } : item
-          )
+          items.map((item) => (item.id === id ? { ...item, is_read: true } : item))
         );
         setUnreadCount((count) => Math.max(0, count - 1));
       })
@@ -62,9 +64,7 @@ export default function NotificationBell() {
   function markAllRead() {
     apiRequest("/notifications/read-all", { method: "POST", auth: true })
       .then(() => {
-        setNotifications((items) =>
-          items.map((item) => ({ ...item, is_read: true }))
-        );
+        setNotifications((items) => items.map((item) => ({ ...item, is_read: true })));
         setUnreadCount(0);
       })
       .catch(() => {});
@@ -76,142 +76,67 @@ export default function NotificationBell() {
     <div style={{ position: "relative" }} ref={ref}>
       <button
         type="button"
+        className="icon-btn"
         onClick={toggle}
-        aria-label="Notifications"
-        style={{
-          position: "relative",
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: "0.5rem",
-          width: 40,
-          height: 40,
-          fontSize: "1.1rem",
-          cursor: "pointer",
-        }}
+        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
       >
-        <span aria-hidden="true">🔔</span>
+        <Bell aria-hidden="true" />
         {unreadCount > 0 && (
-          <span
-            style={{
-              position: "absolute",
-              top: -6,
-              right: -6,
-              background: "#dc2626",
-              color: "#fff",
-              borderRadius: "999px",
-              minWidth: 18,
-              height: 18,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "0.7rem",
-              fontWeight: 700,
-              padding: "0 0.25rem",
-            }}
-          >
+          <span className="badge-dot" aria-hidden="true">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 8px)",
-            width: "min(360px, calc(100vw - 32px))",
-            maxHeight: 420,
-            overflowY: "auto",
-            background: "#fff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "0.5rem",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
-            zIndex: 50,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "0.75rem 1rem",
-              borderBottom: "1px solid #e5e7eb",
-            }}
-          >
-            <strong>Notifications</strong>
-            {unreadItems.length > 0 && (
+        <div className="dropdown dropdown-right dropdown-lg notification-panel">
+          <div className="dropdown-head">
+            <span className="text-semibold">Notifications</span>
+            <div className="flex gap-1">
+              {unreadItems.length > 0 && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={markAllRead}>
+                  <CheckCheck aria-hidden="true" /> Mark all read
+                </button>
+              )}
               <button
                 type="button"
-                onClick={markAllRead}
-                style={{
-                  border: "none",
-                  background: "none",
-                  color: "#4f46e5",
-                  cursor: "pointer",
-                  fontSize: "0.875rem",
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setOpen(false);
+                  navigate("/notifications");
                 }}
               >
-                Mark all as read
+                <Settings aria-hidden="true" /> View all
               </button>
-            )}
+            </div>
           </div>
           {loading ? (
-            <p style={{ padding: "1rem", color: "#6b7280" }}>Loading...</p>
+            <p className="dropdown-empty">Loading…</p>
           ) : notifications.length === 0 ? (
-            <p style={{ padding: "1rem", color: "#6b7280" }}>
-              No notifications yet.
-            </p>
+            <p className="dropdown-empty">No notifications yet.</p>
           ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            <ul className="notification-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {notifications.map((item) => (
                 <li
                   key={item.id}
                   role={item.is_read ? undefined : "button"}
                   tabIndex={item.is_read ? undefined : 0}
-                  aria-label={
-                    item.is_read ? undefined : `Mark "${item.title}" as read`
-                  }
+                  aria-label={item.is_read ? undefined : `Mark "${item.title}" as read`}
                   onClick={() => !item.is_read && markRead(item.id)}
                   onKeyDown={(event) => {
-                    if (
-                      !item.is_read &&
-                      (event.key === "Enter" || event.key === " ")
-                    ) {
+                    if (!item.is_read && (event.key === "Enter" || event.key === " ")) {
                       event.preventDefault();
                       markRead(item.id);
                     }
                   }}
-                  style={{
-                    padding: "0.6rem 1rem",
-                    borderBottom: "1px solid #e5e7eb",
-                    background: item.is_read ? "#fff" : "#f5f3ff",
-                    cursor: item.is_read ? "default" : "pointer",
-                  }}
+                  className={item.is_read ? "notification-item" : "notification-item notification-item-unread"}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <strong style={{ fontSize: "0.875rem" }}>{item.title}</strong>
-                    <span style={{ color: "#9ca3af", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
-                      {formatDateTime(item.created_at)}
-                    </span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-semibold text-sm">{item.title}</span>
+                    {!item.is_read && <Badge variant="warning" dotOnly />}
                   </div>
-                  {item.message && (
-                    <div
-                      style={{
-                        color: "#4b5563",
-                        fontSize: "0.8125rem",
-                        marginTop: "0.2rem",
-                      }}
-                    >
-                      {item.message}
-                    </div>
-                  )}
+                  {item.message && <div className="text-sm text-secondary mt-1">{item.message}</div>}
+                  <div className="text-xs text-muted mt-1">{formatDateTime(item.created_at)}</div>
                 </li>
               ))}
             </ul>

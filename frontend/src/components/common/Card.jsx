@@ -1,16 +1,34 @@
-export default function Card({ title, children }) {
+export default function Card({
+  title,
+  icon: Icon,
+  actions,
+  footer,
+  children,
+  hover = false,
+  padded = true,
+  className = "",
+  ...props
+}) {
   return (
     <section
-      style={{
-        background: "#fff",
-        border: "1px solid #e5e7eb",
-        borderRadius: "0.5rem",
-        padding: "1.25rem",
-        marginBottom: "1rem",
-      }}
+      className={`card${hover ? " card-hover" : ""}${!padded ? " card-pad-0" : ""} ${className}`}
+      {...props}
     >
-      {title && <h3 style={{ marginTop: 0 }}>{title}</h3>}
+      {(title || actions) && (
+        <div className="card-head">
+          <h3 className="card-title">
+            {Icon && (
+              <span className="card-icon">
+                <Icon aria-hidden="true" />
+              </span>
+            )}
+            {title}
+          </h3>
+          {actions && <div className="card-actions">{actions}</div>}
+        </div>
+      )}
       {children}
+      {footer && <div className="card-footer">{footer}</div>}
     </section>
   );
 }

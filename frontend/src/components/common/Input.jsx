@@ -1,30 +1,45 @@
-export default function Input({ label, name, type = "text", options, placeholder, ...props }) {
-  const baseStyle = {
-    padding: "0.6rem",
-    borderRadius: "0.375rem",
-    border: "1px solid #d1d5db",
-  };
+import { forwardRef, useId } from "react";
+
+const Input = forwardRef(function Input(
+  { label, name, type = "text", icon: Icon, error, hint, className = "", required, ...props },
+  ref
+) {
+  const id = useId();
 
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginBottom: "1rem" }}>
-      <span>{label}</span>
-      {type === "select" ? (
-        <select name={name} style={baseStyle} {...props}>
-          <option value="">{placeholder || "Select..."}</option>
-          {(options || []).map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </select>
-      ) : (
+    <div className={`field ${className}`}>
+      {label && (
+        <label className="field-label" htmlFor={id}>
+          {label}
+          {required && <span className="text-danger"> *</span>}
+        </label>
+      )}
+      <div className="input-wrap">
+        {Icon && <Icon aria-hidden="true" />}
         <input
+          ref={ref}
+          id={id}
           name={name}
           type={type}
-          style={baseStyle}
+          className={`input${error ? " input-error" : ""}`}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+          required={required}
           {...props}
         />
+      </div>
+      {error && (
+        <span className="field-error" id={`${id}-error`}>
+          {error}
+        </span>
       )}
-    </label>
+      {hint && !error && (
+        <span className="field-hint" id={`${id}-hint`}>
+          {hint}
+        </span>
+      )}
+    </div>
   );
-}
+});
+
+export default Input;

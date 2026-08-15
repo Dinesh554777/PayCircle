@@ -1,91 +1,34 @@
 import { useEffect, useState } from "react";
+import { Sparkles, Lightbulb, TrendingUp } from "lucide-react";
 import Card from "./common/Card";
+import Skeleton from "./common/Skeleton";
+import ErrorState from "./common/ErrorState";
+import EmptyState from "./common/EmptyState";
+import ProgressBar from "./common/ProgressBar";
+import Badge from "./common/Badge";
 import { apiRequest } from "../api/client";
 import { formatMoney } from "../utils/format";
+import { CATEGORY_COLORS } from "../constants/categories";
 
-const BAR_COLORS = [
-  "#4f46e5",
-  "#0ea5e9",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-  "#14b8a6",
-  "#f97316",
-  "#64748b",
-  "#ec4899",
-];
-
-function Bar({ label, value, width, color }) {
+function MiniStat({ label, value }) {
   return (
-    <div style={{ marginBottom: "0.75rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: "0.875rem",
-          marginBottom: "0.25rem",
-        }}
-      >
-        <span>{label}</span>
-        <span style={{ color: "#6b7280" }}>{value}</span>
-      </div>
-      <div
-        style={{
-          background: "#f3f4f6",
-          borderRadius: "0.25rem",
-          height: "0.625rem",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            width: `${Math.max(2, Math.min(100, width))}%`,
-            background: color,
-            height: "100%",
-            borderRadius: "0.25rem",
-          }}
-        />
-      </div>
+    <div className="stat-mini">
+      <div className="stat-mini-label">{label}</div>
+      <div className="stat-mini-value">{value}</div>
     </div>
   );
 }
 
-function MiniStat({ label, value }) {
+function ListBlock({ icon: Icon, title, items }) {
+  if (!items || items.length === 0) return null;
   return (
-    <section
-      style={{
-        background: "#f9fafb",
-        border: "1px solid #e5e7eb",
-        borderRadius: "0.5rem",
-        padding: "0.75rem",
-      }}
-    >
-      <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>{label}</div>
-      <div
-        style={{
-          fontSize: "1.05rem",
-          fontWeight: 700,
-          color: "#1f2937",
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
-      </div>
-    </section>
-  );
-}
-
-function ListBlock({ title, items }) {
-  if (items.length === 0) return null;
-  return (
-    <div style={{ marginBottom: "1.25rem" }}>
-      <h4 style={{ marginBottom: "0.5rem" }}>{title}</h4>
-      <ul style={{ margin: 0, paddingLeft: "1.25rem", color: "#374151" }}>
+    <div className="insight-block">
+      <h4 className="insight-block-title">
+        <Icon aria-hidden="true" /> {title}
+      </h4>
+      <ul className="insight-list">
         {items.map((item) => (
-          <li key={item} style={{ marginBottom: "0.25rem" }}>
-            {item}
-          </li>
+          <li key={item}>{item}</li>
         ))}
       </ul>
     </div>
@@ -106,18 +49,24 @@ export default function AIInsights() {
 
   if (loading) {
     return (
-      <Card title="AI Insights">
-        <p>Loading AI insights...</p>
+      <Card className="mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles aria-hidden="true" className="text-primary" />
+          <h3 className="mb-0">AI Insights</h3>
+        </div>
+        <Skeleton lines={3} />
+        <div className="grid-4 mt-3">
+          <Skeleton />
+          <Skeleton />
+          <Skeleton />
+          <Skeleton />
+        </div>
       </Card>
     );
   }
 
   if (error) {
-    return (
-      <Card title="AI Insights">
-        <p style={{ color: "#dc2626" }}>{error}</p>
-      </Card>
-    );
+    return <ErrorState title="Couldn't load AI insights" message={error} compact />;
   }
 
   if (!data) return null;
@@ -126,23 +75,20 @@ export default function AIInsights() {
     data.category_breakdown.length > 0
       ? Math.max(...data.category_breakdown.map((c) => Number(c.amount)), 1)
       : 1;
-  const maxMonth =
-    data.monthly_summary.length > 0
-      ? Math.max(...data.monthly_summary.map((m) => Number(m.amount)), 1)
-      : 1;
 
   return (
-    <Card title="AI Insights">
-      <p style={{ marginTop: 0 }}>{data.summary}</p>
+    <Card className="mb-4">
+      <div className="card-title-row">
+        <span className="flex items-center gap-2">
+          <Sparkles aria-hidden="true" className="text-primary" />
+          <h3 className="mb-0">AI Insights</h3>
+          <Badge variant="primary">AI</Badge>
+        </span>
+      </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: "0.75rem",
-          marginBottom: "1.25rem",
-        }}
-      >
+      <p className="text-secondary mb-4">{data.summary}</p>
+
+      <div className="grid-4 mb-4">
         <MiniStat label="Total Spending" value={formatMoney(data.total_spending)} />
         <MiniStat label="Average Expense" value={formatMoney(data.average_expense)} />
         <MiniStat label="Expenses" value={String(data.expense_count)} />
@@ -157,40 +103,56 @@ export default function AIInsights() {
       </div>
 
       {data.category_breakdown.length > 0 && (
-        <div style={{ marginBottom: "1.25rem" }}>
-          <h4 style={{ marginBottom: "0.75rem" }}>Spending by category</h4>
-          {data.category_breakdown.map((cat, index) => (
-            <Bar
-              key={cat.category}
-              label={cat.category}
-              value={`${formatMoney(cat.amount)} · ${cat.count} expense${cat.count === 1 ? "" : "s"}`}
-              width={(Number(cat.amount) / maxCategory) * 100}
-              color={BAR_COLORS[index % BAR_COLORS.length]}
-            />
+        <div className="mb-4">
+          <h4 className="insight-block-title">Spending by category</h4>
+          {data.category_breakdown.map((cat) => (
+            <div key={cat.category} className="mb-3">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-semibold">{cat.category}</span>
+                <span className="text-secondary">
+                  {formatMoney(cat.amount)} · {cat.count} expense{cat.count === 1 ? "" : "s"}
+                </span>
+              </div>
+              <ProgressBar
+                value={Number(cat.amount)}
+                max={maxCategory}
+                color={CATEGORY_COLORS[cat.category]?.color || "var(--primary)"}
+              />
+            </div>
           ))}
         </div>
       )}
 
       {data.monthly_summary.length > 0 && (
-        <div style={{ marginBottom: "1.25rem" }}>
-          <h4 style={{ marginBottom: "0.75rem" }}>Monthly spending trend</h4>
+        <div className="mb-4">
+          <h4 className="insight-block-title">
+            <TrendingUp aria-hidden="true" /> Monthly spending trend
+          </h4>
           {data.monthly_summary.map((month) => (
-            <Bar
-              key={month.month}
-              label={month.label}
-              value={`${formatMoney(month.amount)} · ${month.count} expense${month.count === 1 ? "" : "s"}`}
-              width={(Number(month.amount) / maxMonth) * 100}
-              color="#4f46e5"
-            />
+            <div key={month.month} className="month-row">
+              <span className="text-secondary">{month.label}</span>
+              <span className="text-semibold">{formatMoney(month.amount)}</span>
+              <span className="text-muted">·</span>
+              <span className="text-muted">
+                {month.count} expense{month.count === 1 ? "" : "s"}
+              </span>
+            </div>
           ))}
         </div>
       )}
 
-      <ListBlock title="Highlights" items={data.insights} />
-      <ListBlock title="Suggestions" items={data.suggestions} />
+      <ListBlock icon={Lightbulb} title="Highlights" items={data.insights} />
+      <ListBlock icon={TrendingUp} title="Suggestions" items={data.suggestions} />
 
-      <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: 0 }}>
-        Insights use your share of each expense in groups you belong to. Informational only; not financial advice.
+      {data.category_breakdown.length === 0 &&
+        data.monthly_summary.length === 0 &&
+        (!data.insights || data.insights.length === 0) && (
+          <EmptyState title="Not enough data yet" message="Add a few expenses to start seeing insights." />
+        )}
+
+      <p className="text-muted text-xs mb-0">
+        Insights use your share of each expense in groups you belong to. Informational only; not
+        financial advice.
       </p>
     </Card>
   );
