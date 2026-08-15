@@ -13,6 +13,7 @@ export default function Layout() {
   const navItems = [
     { to: "/dashboard", label: "Dashboard" },
     { to: "/groups", label: "Groups" },
+    { to: "/chat", label: "AI Chat" },
     { to: "/profile", label: "Profile" },
   ];
 

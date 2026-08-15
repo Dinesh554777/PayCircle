@@ -3,12 +3,14 @@ from fastapi import APIRouter
 from app.routes import (
     auth,
     balances,
+    chat,
     dashboard,
     db,
     expenses,
     groups,
     health,
     insights,
+    prediction,
     settlements,
     transactions,
     users,
@@ -27,3 +29,5 @@ api_router.include_router(transactions.router, tags=["transactions"])
 api_router.include_router(balances.router, tags=["balances"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(insights.router, prefix="/ai", tags=["ai"])
+api_router.include_router(chat.router, prefix="/ai", tags=["ai"])
+api_router.include_router(prediction.router, prefix="/ai", tags=["ai"])

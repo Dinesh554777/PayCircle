@@ -11,6 +11,7 @@ import ExpenseDetails from "./pages/ExpenseDetails";
 import GroupBalances from "./pages/GroupBalances";
 import GroupTransactions from "./pages/GroupTransactions";
 import Profile from "./pages/Profile";
+import Chat from "./pages/Chat";
 import Layout from "./components/Layout";
 
 function ProtectedRoute({ children }) {
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="/groups/:id/balances" element={<GroupBalances />} />
         <Route path="/groups/:id/transactions" element={<GroupTransactions />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/chat" element={<Chat />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
