@@ -1,28 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Receipt } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
+import Select from "../components/common/Select";
 import Button from "../components/common/Button";
+import Badge from "../components/common/Badge";
+import ErrorState from "../components/common/ErrorState";
+import Skeleton from "../components/common/Skeleton";
+import Avatar from "../components/common/Avatar";
 import { apiRequest } from "../api/client";
 import { CURRENCY_SYMBOL } from "../utils/format";
 
 const METHODS = [
-  { value: "equal", label: "Equal Split" },
-  { value: "exact", label: "Exact Amounts" },
+  { value: "equal", label: "Equal" },
+  { value: "exact", label: "Exact" },
   { value: "percentage", label: "Percentage" },
-];
-
-const CATEGORIES = [
-  "Food",
-  "Transport",
-  "Entertainment",
-  "Shopping",
-  "Utilities",
-  "Healthcare",
-  "Education",
-  "Travel",
-  "Rent",
-  "Other",
 ];
 
 export default function ExpenseForm() {
@@ -52,13 +45,14 @@ export default function ExpenseForm() {
   useEffect(() => {
     Promise.all([
       apiRequest(`/groups/${id}`, { auth: true }),
-      isEdit ? apiRequest(`/groups/${id}/expenses/${expenseId}`, { auth: true }) : Promise.resolve(null),
+      isEdit
+        ? apiRequest(`/groups/${id}/expenses/${expenseId}`, { auth: true })
+        : Promise.resolve(null),
     ])
       .then(([group, expense]) => {
         const memberOptions = group.members.map((m) => ({
-          id: m.user_id,
-          name: m.user.name,
-          email: m.user.email,
+          value: String(m.user_id),
+          label: m.user?.name || `User ${m.user_id}`,
         }));
         setMembers(memberOptions);
 
@@ -75,9 +69,10 @@ export default function ExpenseForm() {
           if (expense.split_method === "percentage") {
             const pct = {};
             expense.splits.forEach((s) => {
-              const value = Number(expense.amount) > 0
-                ? ((Number(s.amount) / Number(expense.amount)) * 100).toFixed(2)
-                : "0";
+              const value =
+                Number(expense.amount) > 0
+                  ? ((Number(s.amount) / Number(expense.amount)) * 100).toFixed(2)
+                  : "0";
               pct[s.user_id] = value;
             });
             setPercentages(pct);
@@ -92,7 +87,7 @@ export default function ExpenseForm() {
             setSelected(expense.splits.map((s) => s.user_id));
           }
         } else {
-          setSelected(memberOptions.map((m) => m.id));
+          setSelected(memberOptions.map((m) => m.value));
         }
       })
       .catch((err) => {
@@ -103,21 +98,18 @@ export default function ExpenseForm() {
   }, [id, expenseId, isEdit]);
 
   const amountNum = Number(amount) || 0;
+  const equalShare = selected.length > 0
+    ? (Math.floor((amountNum / selected.length) * 100) / 100).toFixed(2)
+    : "0.00";
 
   const splitTotal = useMemo(() => {
     if (splitMethod === "equal") {
-      return selected.length > 0 ? Math.round(amountNum * 100) / 100 : 0;
+      return selected.length > 0 ? amountNum : 0;
     }
     if (splitMethod === "exact") {
-      return Object.values(exactAmounts).reduce(
-        (sum, v) => sum + (Number(v) || 0),
-        0
-      );
+      return Object.values(exactAmounts).reduce((sum, v) => sum + (Number(v) || 0), 0);
     }
-    return Object.values(percentages).reduce(
-      (sum, v) => sum + (Number(v) || 0),
-      0
-    );
+    return Object.values(percentages).reduce((sum, v) => sum + (Number(v) || 0), 0);
   }, [splitMethod, selected, exactAmounts, percentages, amountNum]);
 
   const totalValid =
@@ -127,18 +119,8 @@ export default function ExpenseForm() {
 
   function toggleMember(memberId) {
     setSelected((prev) =>
-      prev.includes(memberId)
-        ? prev.filter((m) => m !== memberId)
-        : [...prev, memberId]
+      prev.includes(memberId) ? prev.filter((m) => m !== memberId) : [...prev, memberId]
     );
-  }
-
-  function updateExact(memberId, value) {
-    setExactAmounts((prev) => ({ ...prev, [memberId]: value }));
-  }
-
-  function updatePercentage(memberId, value) {
-    setPercentages((prev) => ({ ...prev, [memberId]: value }));
   }
 
   function buildPayload() {
@@ -152,7 +134,7 @@ export default function ExpenseForm() {
       split_method: splitMethod,
     };
     if (splitMethod === "equal") {
-      return { ...base, participants: selected };
+      return { ...base, participants: selected.map(Number) };
     }
     if (splitMethod === "exact") {
       return {
@@ -211,49 +193,55 @@ export default function ExpenseForm() {
     }
   }
 
-  if (loading) return <p>Loading...</p>;
-
-  if (loadError) {
+  if (loading) {
     return (
-      <div>
-        <Link to={`/groups/${id}/expenses`}>&larr; Back to expenses</Link>
-        <h1>{isEdit ? "Edit Expense" : "Add Expense"}</h1>
-        <div
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#dc2626",
-            borderRadius: "0.5rem",
-            padding: "1rem",
-          }}
-        >
-          Could not load this page: {loadError}
-        </div>
-      </div>
+      <Card>
+        <Skeleton lines={6} />
+      </Card>
     );
   }
 
-  const equalShare = selected.length > 0
-    ? (Math.floor((amountNum / selected.length) * 100) / 100).toFixed(2)
-    : "0.00";
+  if (loadError) {
+    return (
+      <>
+        <Link to={`/groups/${id}/expenses`} className="btn btn-ghost btn-sm mb-3">
+          <ArrowLeft aria-hidden="true" /> Back to expenses
+        </Link>
+        <ErrorState title="Could not load this page" message={loadError} />
+      </>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 560 }}>
-      <Link to={`/groups/${id}/expenses`}>&larr; Back to expenses</Link>
-      <h1>{isEdit ? "Edit Expense" : "Add Expense"}</h1>
+    <>
+      <Link to={`/groups/${id}/expenses`} className="btn btn-ghost btn-sm mb-3">
+        <ArrowLeft aria-hidden="true" /> Back to expenses
+      </Link>
 
-      <form onSubmit={handleSubmit}>
-        <Card title="Expense details">
+      <div className="flex justify-between items-center gap-3 wrap mb-4">
+        <div>
+          <h2 className="mb-1">{isEdit ? "Edit Expense" : "Add Expense"}</h2>
+          <p className="text-secondary mb-0">
+            {isEdit ? "Update the expense details below." : "Split a new expense with your group."}
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} style={{ maxWidth: 560 }}>
+        <Card title="Expense details" className="mb-4">
           <Input
             label="Title"
             name="title"
             required
+            autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
           <Input
             label="Description (optional)"
             name="description"
+            textarea
+            rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
@@ -267,132 +255,152 @@ export default function ExpenseForm() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <Input
-            label="Category"
-            name="category"
-            type="select"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            options={CATEGORIES.map((c) => ({ id: c, name: c }))}
-            placeholder="Auto (AI)"
-          />
-          <p
-            style={{
-              marginTop: "-0.5rem",
-              fontSize: "0.75rem",
-              color: "#6b7280",
-            }}
-          >
-            {isEdit && aiCategory
-              ? `Currently categorized as ${aiCategory} by AI.`
-              : "Leave empty to auto-categorize with AI."}
-          </p>
-          <Input
+          <div className="grid-2 gap-2">
+            <Select
+              label="Category"
+              name="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              options={["Food", "Transport", "Entertainment", "Shopping", "Utilities", "Healthcare", "Education", "Travel", "Rent", "Other"].map((c) => ({ value: c, label: c }))}
+              placeholder="Auto (AI)"
+            />
+            <Input
+              label="Expense date"
+              name="expenseDate"
+              type="date"
+              value={expenseDate}
+              onChange={(e) => setExpenseDate(e.target.value)}
+            />
+          </div>
+          {isEdit && aiCategory ? (
+            <p className="text-muted text-sm">
+              Currently categorized as <Badge variant="primary">{aiCategory}</Badge> by AI.
+            </p>
+          ) : (
+            <p className="text-muted text-sm">Leave category empty to auto-categorize with AI.</p>
+          )}
+          <Select
             label="Paid by"
             name="paidBy"
-            type="select"
             required
             value={paidBy}
             onChange={(e) => setPaidBy(e.target.value)}
             options={members}
           />
-          <Input
-            label="Expense date"
-            name="expenseDate"
-            type="date"
-            value={expenseDate}
-            onChange={(e) => setExpenseDate(e.target.value)}
-          />
         </Card>
 
-        <Card title="Split">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
+        <Card title="Split" className="mb-4">
+          <div className="flex gap-2 wrap mb-3">
             {METHODS.map((m) => (
-              <label key={m.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                <input
-                  type="radio"
-                  name="splitMethod"
-                  value={m.value}
-                  checked={splitMethod === m.value}
-                  onChange={() => setSplitMethod(m.value)}
-                />
+              <button
+                key={m.value}
+                type="button"
+                className={`chip${splitMethod === m.value ? " chip-active" : ""}`}
+                onClick={() => setSplitMethod(m.value)}
+                aria-pressed={splitMethod === m.value}
+              >
                 {m.label}
-              </label>
+              </button>
             ))}
           </div>
 
           {splitMethod === "equal" && (
             <div>
-              <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                Each selected member pays {CURRENCY_SYMBOL}{equalShare}
+              <p className="text-sm text-secondary mb-3">
+                Each selected member pays <strong>{CURRENCY_SYMBOL}{equalShare}</strong>.
               </p>
-              {members.map((member) => (
-                <label
-                  key={member.id}
-                  style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.25rem 0" }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(member.id)}
-                    onChange={() => toggleMember(member.id)}
-                  />
-                  {member.name}
-                </label>
-              ))}
+              <div className="member-list">
+                {members.map((member) => {
+                  const isChecked = selected.includes(member.value);
+                  return (
+                    <label key={member.value} className="member-row selectable-row">
+                      <input
+                        type="checkbox"
+                        className="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleMember(member.value)}
+                      />
+                      <Avatar name={member.label} size="sm" />
+                      <span className="flex-1">{member.label}</span>
+                      <span className="text-muted text-sm">{isChecked ? `pays ${CURRENCY_SYMBOL}${equalShare}` : "not split"}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {splitMethod === "exact" && (
-            <div>
+            <div className="member-list">
               {members.map((member) => (
-                <div key={member.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.25rem 0" }}>
-                  <span style={{ flex: 1 }}>{member.name}</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={exactAmounts[member.id] || ""}
-                    onChange={(e) => updateExact(member.id, e.target.value)}
-                    style={{ width: 120, padding: "0.4rem", borderRadius: "0.375rem", border: "1px solid #d1d5db" }}
-                  />
+                <div key={member.value} className="member-row">
+                  <Avatar name={member.label} size="sm" />
+                  <span style={{ flex: 1 }}>{member.label}</span>
+                  <div className="input-wrap" style={{ width: 130 }}>
+                    <input
+                      type="number"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={exactAmounts[member.value] || ""}
+                      onChange={(e) => {
+                        setExactAmounts((prev) => ({ ...prev, [member.value]: e.target.value }));
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
           {splitMethod === "percentage" && (
-            <div>
+            <div className="member-list">
               {members.map((member) => (
-                <div key={member.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.25rem 0" }}>
-                  <span style={{ flex: 1 }}>{member.name}</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0"
-                    value={percentages[member.id] || ""}
-                    onChange={(e) => updatePercentage(member.id, e.target.value)}
-                    style={{ width: 120, padding: "0.4rem", borderRadius: "0.375rem", border: "1px solid #d1d5db" }}
-                  />
-                  %
+                <div key={member.value} className="member-row">
+                  <Avatar name={member.label} size="sm" />
+                  <span style={{ flex: 1 }}>{member.label}</span>
+                  <div className="input-wrap" style={{ width: 110 }}>
+                    <input
+                      type="number"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      placeholder="0"
+                      value={percentages[member.value] || ""}
+                      onChange={(e) => {
+                        setPercentages((prev) => ({ ...prev, [member.value]: e.target.value }));
+                      }}
+                    />
+                  </div>
+                  <span className="text-muted">%</span>
                 </div>
               ))}
             </div>
           )}
 
-          <p style={{ color: totalValid ? "#15803d" : "#dc2626", fontWeight: 600 }}>
-            {splitMethod === "percentage" ? "Percentage" : "Split"} total: {splitTotal.toFixed(2)}{" "}
-            {splitMethod === "percentage" ? "%" : `of ${CURRENCY_SYMBOL}${amountNum.toFixed(2)}`}
-            {!totalValid && " — totals don't match"}
-          </p>
+          <div
+            className={`split-total${totalValid ? " split-total-ok" : " split-total-bad"}`}
+          >
+            <span>{splitMethod === "percentage" ? "Percentage" : "Split"} total:</span>
+            <strong>
+              {splitTotal.toFixed(2)}
+              {splitMethod === "percentage" ? "%" : ` of ${CURRENCY_SYMBOL}${amountNum.toFixed(2)}`}
+            </strong>
+            {!totalValid && <span className="text-sm">— totals don't match</span>}
+          </div>
         </Card>
 
-        {error && <p style={{ color: "#dc2626", fontSize: "0.875rem" }}>{error}</p>}
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Saving..." : isEdit ? "Save Changes" : "Add Expense"}
-        </Button>
+        {error && <p className="form-error">{error}</p>}
+        <div className="flex gap-2 items-center">
+          <Button type="submit" loading={submitting} icon={Receipt}>
+            {isEdit ? "Save Changes" : "Add Expense"}
+          </Button>
+          <Link to={`/groups/${id}/expenses`} className="btn btn-ghost">
+            Cancel
+          </Link>
+        </div>
       </form>
-    </div>
+    </>
   );
 }

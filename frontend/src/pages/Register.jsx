@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Card from "../components/common/Card";
+import { UserRound, Mail, Lock } from "lucide-react";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
+import AuthShell from "../components/auth/AuthShell";
 import { useAuth } from "../context/AuthContext";
 
 export default function Register() {
@@ -33,53 +34,59 @@ export default function Register() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: "4rem auto" }}>
-      <Card title="Create your account">
-        <form onSubmit={handleSubmit}>
-          <Input
-            label="Full Name"
-            name="name"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <Input
-            label="Confirm Password"
-            name="confirmPassword"
-            type="password"
-            required
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-          {error && (
-            <p style={{ color: "#dc2626", fontSize: "0.875rem", marginBottom: "1rem" }}>
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={submitting} style={{ width: "100%" }}>
-            {submitting ? "Creating account..." : "Register"}
-          </Button>
-        </form>
-        <p style={{ textAlign: "center", marginBottom: 0 }}>
-          Already have an account? <Link to="/login">Login</Link>
-        </p>
-      </Card>
-    </div>
+    <AuthShell title="Create your account" subtitle="Start splitting expenses in seconds.">
+      <form onSubmit={handleSubmit} className="flex flex-column gap-3">
+        <Input
+          label="Full Name"
+          name="name"
+          icon={UserRound}
+          required
+          autoComplete="name"
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Input
+          label="Email"
+          name="email"
+          type="email"
+          icon={Mail}
+          required
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <Input
+          label="Password"
+          name="password"
+          type="password"
+          icon={Lock}
+          required
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <Input
+          label="Confirm Password"
+          name="confirmPassword"
+          type="password"
+          icon={Lock}
+          required
+          autoComplete="new-password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+        />
+        {error && <p className="form-error mb-0">{error}</p>}
+        <Button type="submit" loading={submitting} className="w-full" size="lg">
+          Register
+        </Button>
+      </form>
+      <p className="auth-foot">
+        Already have an account?{" "}
+        <Link to="/login" className="link">
+          Login
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

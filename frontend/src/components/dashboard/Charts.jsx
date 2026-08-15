@@ -20,6 +20,22 @@ import { formatMoney } from "../../utils/format";
 import { CATEGORY_COLORS, getCategoryConfig } from "../../constants/categories";
 import { useTheme } from "../../context/ThemeContext";
 
+export function ChartsGrid({ data }) {
+  return (
+    <div className="grid-3 mb-4">
+      <ChartCard title="Spending Trend" subtitle="Monthly spend from recent activity" icon={null}>
+        <SpendingTrendChart transactions={data.recent_transactions} />
+      </ChartCard>
+      <ChartCard title="Category Breakdown" subtitle="Where your money went" icon={null}>
+        <CategoryBreakdownChart transactions={data.recent_transactions} />
+      </ChartCard>
+      <ChartCard title="Group Spending" subtitle="Total per group" icon={null}>
+        <GroupSpendingChart groups={data.recent_groups} />
+      </ChartCard>
+    </div>
+  );
+}
+
 export function ChartCard({ title, subtitle, icon: Icon, children }) {
   return (
     <Card title={title} icon={Icon} className="h-full">

@@ -1,8 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import Card from "../components/common/Card";
+import { ArrowLeft, Activity } from "lucide-react";
+import Button from "../components/common/Button";
+import SearchBar from "../components/common/SearchBar";
+import Select from "../components/common/Select";
+import EmptyState from "../components/common/EmptyState";
+import ErrorState from "../components/common/ErrorState";
+import Skeleton from "../components/common/Skeleton";
+import TransactionItem from "../components/transactions/TransactionItem";
 import { apiRequest } from "../api/client";
-import { formatDateTime, formatMoney } from "../utils/format";
+
+const TYPE_OPTIONS = [
+  { value: "all", label: "All activity" },
+  { value: "expense", label: "Expenses only" },
+  { value: "settlement", label: "Settlements only" },
+];
 
 export default function GroupTransactions() {
   const { id } = useParams();
@@ -10,8 +22,11 @@ export default function GroupTransactions() {
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       apiRequest(`/groups/${id}`, { auth: true }),
       apiRequest(`/groups/${id}/transactions`, { auth: true }),
@@ -19,108 +34,94 @@ export default function GroupTransactions() {
       .then(([g, items]) => {
         setGroup(g);
         setFeed(items);
+        setError("");
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return feed.filter((item) => {
+      const matchesType = typeFilter === "all" || item.type === typeFilter;
+      const searchable = [
+        item.title,
+        item.payer?.name,
+        item.receiver?.name,
+        item.group?.name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return matchesType && (!q || searchable.includes(q));
+    });
+  }, [feed, typeFilter, query]);
+
   if (error && !group) {
-    return (
-      <div>
-        <h1>Transactions</h1>
-        <p style={{ color: "#dc2626" }}>{error}</p>
-        <Link to="/groups">Back to groups</Link>
-      </div>
-    );
+    return <ErrorState title="Couldn't load transactions" message={error} />;
   }
 
   return (
-    <div style={{ maxWidth: 640 }}>
-      <Link to={`/groups/${id}`}>&larr; Back to {group?.name || "group"}</Link>
-      <h1>Transactions</h1>
+    <>
+      <Link to={`/groups/${id}`} className="btn btn-ghost btn-sm mb-3">
+        <ArrowLeft aria-hidden="true" /> Back to {group?.name || "group"}
+      </Link>
 
-      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+      <div className="flex justify-between items-end gap-3 wrap mb-4">
+        <div>
+          <h2 className="mb-1">Transactions</h2>
+          <p className="text-secondary mb-0">Expenses and settlements in this group.</p>
+        </div>
+        <Link to={`/groups/${id}/expenses/new`}>
+          <Button variant="primary">Add Expense</Button>
+        </Link>
+      </div>
 
       {loading ? (
-        <p>Loading...</p>
+        <Skeleton type="card" style={{ height: 320 }} />
+      ) : error ? (
+        <ErrorState title="Couldn't load transactions" message={error} />
       ) : feed.length === 0 ? (
-        <Card title="No activity yet">
-          <p>Expenses and settlements will appear here.</p>
-        </Card>
+        <EmptyState
+          icon={Activity}
+          title="No activity yet"
+          message="Expenses and settlements will appear here."
+        />
       ) : (
-        feed.map((item, index) => (
-          <Card key={`${item.type}-${item.date}-${index}`} title={item.type === "expense" ? item.title : "Settlement"}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <strong style={{ fontSize: "1.1rem" }}>{formatMoney(item.amount)}</strong>
-                <span
-                  style={{
-                    marginLeft: "0.5rem",
-                    fontSize: "0.8rem",
-                    background: item.type === "expense" ? "#eef2ff" : "#ecfdf5",
-                    color: item.type === "expense" ? "#4f46e5" : "#047857",
-                    padding: "0.1rem 0.4rem",
-                    borderRadius: "0.25rem",
-                  }}
-                >
-                  {item.type}
-                </span>
-                {item.type === "settlement" && item.status && (
-                  <span
-                    style={{
-                      marginLeft: "0.5rem",
-                      fontSize: "0.8rem",
-                      background: "#fef3c7",
-                      color: "#b45309",
-                      padding: "0.1rem 0.4rem",
-                      borderRadius: "0.25rem",
-                    }}
-                  >
-                    {item.status}
-                  </span>
-                )}
-              </div>
-              <span style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                {formatDateTime(item.date)}
-              </span>
+        <>
+          <div className="flex gap-2 wrap items-center mb-4">
+            <div style={{ flex: 1, minWidth: 200, maxWidth: 340 }}>
+              <SearchBar
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search transactions…"
+              />
             </div>
+            <Select
+              name="typeFilter"
+              options={TYPE_OPTIONS}
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              placeholder="Type"
+              style={{ minWidth: 170 }}
+            />
+          </div>
 
-            {item.type === "expense" ? (
-              <>
-                <p style={{ color: "#6b7280", fontSize: "0.875rem", marginBottom: 0 }}>
-                  Paid by {item.payer?.name}
-                </p>
-                <ul style={{ listStyle: "none", padding: 0, marginTop: "0.5rem" }}>
-                  {item.splits.map((split) => (
-                    <li
-                      key={split.user_id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        fontSize: "0.875rem",
-                        color: "#4b5563",
-                      }}
-                    >
-                      <span>{split.user?.name}</span>
-                      <span>{formatMoney(split.amount)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <p style={{ color: "#6b7280", fontSize: "0.875rem", marginBottom: 0 }}>
-                {item.payer?.name} paid {item.receiver?.name}
-              </p>
-            )}
-          </Card>
-        ))
+          {filtered.length === 0 ? (
+            <EmptyState title="No matches" message="Try a different filter or search." />
+          ) : (
+            <div className="flex flex-column">
+              {filtered.map((item, index) => (
+                <TransactionItem
+                  key={`${item.type}-${item.date}-${index}`}
+                  item={item}
+                  groupId={id}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
-    </div>
+    </>
   );
 }

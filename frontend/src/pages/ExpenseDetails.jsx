@@ -1,21 +1,32 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
+import ConfirmModal from "../components/common/ConfirmModal";
+import Badge from "../components/common/Badge";
+import Avatar from "../components/common/Avatar";
+import Skeleton from "../components/common/Skeleton";
+import ErrorState from "../components/common/ErrorState";
+import CategoryBadge from "../components/expenses/CategoryBadge";
+import { useToast } from "../components/common/Toast";
 import { apiRequest } from "../api/client";
 import { formatDate, formatMoney } from "../utils/format";
 
 export default function ExpenseDetails() {
   const { id, expenseId } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const [expense, setExpense] = useState(null);
   const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   async function loadExpense() {
     try {
       const data = await apiRequest(`/groups/${id}/expenses/${expenseId}`, { auth: true });
       setExpense(data);
+      setError("");
     } catch (err) {
       setError(err.message);
     }
@@ -26,97 +37,117 @@ export default function ExpenseDetails() {
   }, [id, expenseId]);
 
   async function handleDelete() {
-    setError("");
-    if (!window.confirm("Delete this expense? This cannot be undone.")) return;
     setDeleting(true);
     try {
       await apiRequest(`/groups/${id}/expenses/${expenseId}`, {
         method: "DELETE",
         auth: true,
       });
+      setConfirmDelete(false);
+      toast.success("Expense deleted");
       navigate(`/groups/${id}/expenses`);
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
       setDeleting(false);
     }
   }
 
   if (error && !expense) {
+    return <ErrorState title="Couldn't load expense" message={error} onRetry={loadExpense} />;
+  }
+
+  if (!expense) {
     return (
-      <div>
-        <h1>Expense</h1>
-        <p style={{ color: "#dc2626" }}>{error}</p>
-        <Link to={`/groups/${id}/expenses`}>Back to expenses</Link>
-      </div>
+      <Card>
+        <Skeleton lines={5} />
+      </Card>
     );
   }
 
-  if (!expense) return <p>Loading...</p>;
-
   return (
-    <div style={{ maxWidth: 560 }}>
-      <Link to={`/groups/${id}/expenses`}>&larr; Back to expenses</Link>
-      <h1>{expense.title}</h1>
+    <>
+      <Link to={`/groups/${id}/expenses`} className="btn btn-ghost btn-sm mb-3">
+        <ArrowLeft aria-hidden="true" /> Back to expenses
+      </Link>
 
-      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
-
-      <Card title="Overview">
-        <p>
-          Amount: <strong>{formatMoney(expense.amount)}</strong>
-        </p>
-        <p>Paid by: {expense.paid_by_user?.name}</p>
-        <p>Date: {formatDate(expense.expense_date || expense.created_at)}</p>
-        <p>Split method: {expense.split_method}</p>
-        {expense.category && (
-          <p>
-            Category: <strong>{expense.category}</strong>{" "}
-            {expense.ai_category && (
-              <span
-                title={`AI-generated (${Math.round((expense.ai_confidence ?? 0) * 100)}% confidence)`}
-                style={{
-                  fontSize: "0.75rem",
-                  background: "#f5f3ff",
-                  color: "#7c3aed",
-                  padding: "0.1rem 0.4rem",
-                  borderRadius: "0.25rem",
-                  border: "1px solid #ddd6fe",
-                }}
-              >
-                AI
-              </span>
-            )}
-          </p>
-        )}
-        {expense.description && <p>Description: {expense.description}</p>}
-      </Card>
-
-      <Card title={`Split (${expense.splits.length})`}>
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {expense.splits.map((split) => (
-            <li
-              key={split.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "0.5rem 0",
-                borderBottom: "1px solid #e5e7eb",
-              }}
-            >
-              <span>{split.user?.name}</span>
-              <strong>{formatMoney(split.amount)}</strong>
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <Link to={`/groups/${id}/expenses/${expenseId}/edit`}>
-          <Button>Edit</Button>
-        </Link>
-        <Button variant="secondary" onClick={handleDelete} disabled={deleting}>
-          {deleting ? "Deleting..." : "Delete"}
-        </Button>
+      <div className="flex justify-between items-start gap-3 wrap mb-4">
+        <div>
+          <h2 className="mb-1">{expense.title}</h2>
+          <div className="flex items-center gap-2 wrap">
+            {expense.category || expense.ai_category ? (
+              <CategoryBadge category={expense.category || expense.ai_category} showAi={Boolean(expense.ai_category)} aiConfidence={expense.ai_confidence} />
+            ) : null}
+            <Badge variant={expense.split_method === "equal" ? "info" : expense.split_method === "percentage" ? "warning" : "primary"}>
+              {expense.split_method} split
+            </Badge>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link to={`/groups/${id}/expenses/${expenseId}/edit`}>
+            <Button variant="secondary" size="sm">
+              <Pencil aria-hidden="true" /> Edit
+            </Button>
+          </Link>
+          <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+            <Trash2 aria-hidden="true" /> Delete
+          </Button>
+        </div>
       </div>
-    </div>
+
+      <div className="grid-2 mb-4">
+        <Card title="Overview">
+          <div className="expense-amount">{formatMoney(expense.amount)}</div>
+          <dl className="detail-list">
+            <div>
+              <dt>Paid by</dt>
+              <dd className="flex items-center gap-2">
+                <Avatar name={expense.paid_by_user?.name} size="sm" />
+                {expense.paid_by_user?.name || "—"}
+              </dd>
+            </div>
+            <div>
+              <dt>Date</dt>
+              <dd>{formatDate(expense.expense_date || expense.created_at)}</dd>
+            </div>
+            {expense.description && (
+              <div>
+                <dt>Description</dt>
+                <dd>{expense.description}</dd>
+              </div>
+            )}
+          </dl>
+        </Card>
+
+        <Card title={`Split (${expense.splits.length})`}>
+          <ul className="member-list">
+            {expense.splits.map((split) => (
+              <li key={split.id} className="member-row">
+                <Avatar name={split.user?.name} size="sm" />
+                <span className="text-secondary" style={{ flex: 1 }}>
+                  {split.user?.name}
+                </span>
+                <span className="text-semibold">{formatMoney(split.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+
+      {expense.ai_category && expense.ai_confidence != null && (
+        <p className="text-muted text-xs mb-0">
+          Category was auto-generated by AI ({Math.round(expense.ai_confidence * 100)}% confidence).
+        </p>
+      )}
+
+      <ConfirmModal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete expense"
+        message="Delete this expense? This cannot be undone."
+        confirmLabel="Delete"
+        loading={deleting}
+      />
+    </>
   );
 }

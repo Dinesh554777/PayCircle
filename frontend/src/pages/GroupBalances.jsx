@@ -1,10 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, ArrowDownUp, CheckCircle2, Handshake } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
+import Select from "../components/common/Select";
 import Button from "../components/common/Button";
+import Modal from "../components/common/Modal";
+import ConfirmModal from "../components/common/ConfirmModal";
+import Badge from "../components/common/Badge";
+import Avatar from "../components/common/Avatar";
+import EmptyState from "../components/common/EmptyState";
+import ErrorState from "../components/common/ErrorState";
+import Skeleton from "../components/common/Skeleton";
+import { useToast } from "../components/common/Toast";
 import { apiRequest } from "../api/client";
-import { CURRENCY_SYMBOL, formatDate, formatMoney } from "../utils/format";
+import { formatDate, formatMoney } from "../utils/format";
 
 export default function GroupBalances() {
   const { id } = useParams();
@@ -13,12 +23,15 @@ export default function GroupBalances() {
   const [settlements, setSettlements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const toast = useToast();
 
+  const [showSettle, setShowSettle] = useState(false);
   const [payerId, setPayerId] = useState("");
   const [receiverId, setReceiverId] = useState("");
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
+  const [completeTarget, setCompleteTarget] = useState(null);
+  const [completing, setCompleting] = useState(false);
 
   function loadAll() {
     setLoading(true);
@@ -31,6 +44,7 @@ export default function GroupBalances() {
         setGroup(g);
         setBalances(b);
         setSettlements(s);
+        setError("");
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -40,10 +54,15 @@ export default function GroupBalances() {
     loadAll();
   }, [id]);
 
+  function resetSettlement() {
+    setPayerId("");
+    setReceiverId("");
+    setAmount("");
+    setShowSettle(false);
+  }
+
   async function handleSettlement(event) {
     event.preventDefault();
-    setError("");
-    setNotice("");
     setSaving(true);
     try {
       await apiRequest(`/groups/${id}/settlements`, {
@@ -51,47 +70,43 @@ export default function GroupBalances() {
         body: { payer_id: Number(payerId), receiver_id: Number(receiverId), amount },
         auth: true,
       });
-      setPayerId("");
-      setReceiverId("");
-      setAmount("");
-      setNotice("Settlement recorded");
+      resetSettlement();
+      toast.success("Settlement recorded");
       loadAll();
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleComplete(settlement) {
-    setError("");
-    if (!window.confirm("Mark this settlement as completed?")) return;
+  async function handleComplete() {
+    if (!completeTarget) return;
+    setCompleting(true);
     try {
-      await apiRequest(`/groups/${id}/settlements/${settlement.id}`, {
+      await apiRequest(`/groups/${id}/settlements/${completeTarget.id}`, {
         method: "PATCH",
         body: { status: "completed" },
         auth: true,
       });
+      setCompleteTarget(null);
+      toast.success("Settlement marked as completed");
       loadAll();
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setCompleting(false);
     }
   }
 
   if (error && !group) {
-    return (
-      <div>
-        <h1>Balances</h1>
-        <p style={{ color: "#dc2626" }}>{error}</p>
-        <Link to="/groups">Back to groups</Link>
-      </div>
-    );
+    return <ErrorState title="Couldn't load balances" message={error} />;
   }
 
   const members = group?.members || [];
   const memberOptions = members.map((m) => ({
-    id: m.user_id,
-    name: m.user?.name || `User ${m.user_id}`,
+    value: String(m.user_id),
+    label: m.user?.name || `User ${m.user_id}`,
   }));
   const canSubmit =
     Boolean(payerId) &&
@@ -100,175 +115,183 @@ export default function GroupBalances() {
     Number(amount) > 0;
 
   return (
-    <div style={{ maxWidth: 640 }}>
-      <Link to={`/groups/${id}`}>&larr; Back to {group?.name || "group"}</Link>
-      <h1>Balances</h1>
+    <>
+      <Link to={`/groups/${id}`} className="btn btn-ghost btn-sm mb-3">
+        <ArrowLeft aria-hidden="true" /> Back to {group?.name || "group"}
+      </Link>
 
-      {notice && <p style={{ color: "#15803d" }}>{notice}</p>}
-      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+      <div className="flex justify-between items-end gap-3 wrap mb-4">
+        <div>
+          <h2 className="mb-1">Balances</h2>
+          <p className="text-secondary mb-0">Who owes what in this group.</p>
+        </div>
+        <Button variant="primary" onClick={() => setShowSettle(true)}>
+          <ArrowDownUp aria-hidden="true" /> Record Settlement
+        </Button>
+      </div>
 
       {loading ? (
-        <p>Loading...</p>
+        <div className="grid-2">
+          <Skeleton type="card" style={{ height: 220 }} />
+          <Skeleton type="card" style={{ height: 220 }} />
+        </div>
+      ) : error ? (
+        <ErrorState title="Couldn't load balances" message={error} onRetry={loadAll} />
       ) : (
-        <>
-          <Card title="Member balances">
-            {balances.balances.length === 0 ? (
-              <p style={{ marginBottom: 0 }}>No member balances to show.</p>
-            ) : (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {balances.balances.map((item) => {
-                  const net = parseFloat(item.net_balance);
-                  return (
-                    <li
-                      key={item.user_id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        padding: "0.5rem 0",
-                        borderBottom: "1px solid #e5e7eb",
-                      }}
-                    >
-                      <span>
-                        <strong>{item.user?.name || `User ${item.user_id}`}</strong>
-                        <span style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                          {" "}
-                          &middot; paid {formatMoney(item.total_paid)} / owes{" "}
-                          {formatMoney(item.total_owed)}
-                        </span>
-                      </span>
-                      <span
-                        style={{
-                          fontWeight: 600,
-                          color: net > 0 ? "#15803d" : net < 0 ? "#dc2626" : "#6b7280",
-                        }}
-                      >
-                        {net > 0 ? "+" : ""}
-                        {formatMoney(item.net_balance)}
-                      </span>
+        <div className="flex flex-column gap-4">
+          <div className="grid-2">
+            <Card title="Member balances">
+              {balances.balances.length === 0 ? (
+                <EmptyState title="No balances yet" message="Add expenses to see who owes what." />
+              ) : (
+                <ul className="member-list">
+                  {balances.balances.map((item) => {
+                    const net = Number(item.net_balance);
+                    const tone = net > 0 ? "success" : net < 0 ? "danger" : "neutral";
+                    return (
+                      <li key={item.user_id} className="member-row">
+                        <Avatar name={item.user?.name} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="text-semibold">{item.user?.name || `User ${item.user_id}`}</div>
+                          <div className="text-muted text-sm">
+                            paid {formatMoney(item.total_paid)} · owes {formatMoney(item.total_owed)}
+                          </div>
+                        </div>
+                        <Badge variant={tone}>
+                          {net > 0 ? "+" : ""}
+                          {formatMoney(item.net_balance)}
+                        </Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Card>
+
+            <Card title="Who owes whom">
+              {balances.who_owes_whom.length === 0 ? (
+                <EmptyState icon={Handshake} title="All settled up" message="No outstanding debts." />
+              ) : (
+                <ul className="member-list">
+                  {balances.who_owes_whom.map((transfer) => (
+                    <li key={`${transfer.from_user_id}-${transfer.to_user_id}`} className="member-row">
+                      <div style={{ flex: 1 }}>
+                        <span className="text-semibold">{transfer.from_user?.name}</span>{" "}
+                        <span className="text-secondary">owes</span>{" "}
+                        <span className="text-semibold">{transfer.to_user?.name}</span>
+                      </div>
+                      <span className="text-semibold">{formatMoney(transfer.amount)}</span>
                     </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Card>
-
-          <Card title="Who owes whom">
-            {balances.who_owes_whom.length === 0 ? (
-              <p style={{ marginBottom: 0 }}>All settled up.</p>
-            ) : (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {balances.who_owes_whom.map((transfer) => (
-                  <li key={`${transfer.from_user_id}-${transfer.to_user_id}`}>
-                    <strong>{transfer.from_user?.name}</strong> owes{" "}
-                    <strong>{transfer.to_user?.name}</strong>{" "}
-                    <strong>{formatMoney(transfer.amount)}</strong>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card title="Record a settlement">
-            <form onSubmit={handleSettlement}>
-              <div
-                style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
-              >
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <Input
-                    label="Who pays"
-                    name="payerId"
-                    type="select"
-                    required
-                    options={memberOptions}
-                    value={payerId}
-                    onChange={(e) => setPayerId(e.target.value)}
-                  />
-                </div>
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <Input
-                    label="Who receives"
-                    name="receiverId"
-                    type="select"
-                    required
-                    options={memberOptions}
-                    value={receiverId}
-                    onChange={(e) => setReceiverId(e.target.value)}
-                  />
-                </div>
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <Input
-                    label={`Amount (${CURRENCY_SYMBOL})`}
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    required
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                </div>
-              </div>
-              {Number(payerId) > 0 &&
-                Number(payerId) === Number(receiverId) && (
-                  <p style={{ color: "#dc2626", fontSize: "0.875rem" }}>
-                    Payer and receiver must be different users.
-                  </p>
-                )}
-              <Button type="submit" disabled={saving || !canSubmit}>
-                {saving ? "Saving..." : "Record Settlement"}
-              </Button>
-            </form>
-          </Card>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
 
           <Card title={`Settlement history (${settlements.length})`}>
             {settlements.length === 0 ? (
-              <p style={{ marginBottom: 0 }}>No settlements yet.</p>
+              <EmptyState
+                title="No settlements yet"
+                message="Record a settlement when someone pays someone back."
+              />
             ) : (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              <ul className="member-list">
                 {settlements.map((settlement) => (
-                  <li
-                    key={settlement.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "0.5rem 0",
-                      borderBottom: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <div>
-                      <strong>{settlement.payer?.name}</strong> paid{" "}
-                      <strong>{settlement.receiver?.name}</strong>{" "}
-                      <strong>{formatMoney(settlement.amount)}</strong>
-                      <div style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                        {formatDate(settlement.settlement_date)} &middot;{" "}
-                        <span
-                          style={{
-                            color:
-                              settlement.status === "completed"
-                                ? "#15803d"
-                                : "#d97706",
-                          }}
-                        >
-                          {settlement.status}
-                        </span>
+                  <li key={settlement.id} className="member-row">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div>
+                        <span className="text-semibold">{settlement.payer?.name}</span>{" "}
+                        <span className="text-secondary">paid</span>{" "}
+                        <span className="text-semibold">{settlement.receiver?.name}</span>{" "}
+                        <span className="text-secondary">{formatMoney(settlement.amount)}</span>
+                      </div>
+                      <div className="text-muted text-sm mt-1">
+                        {formatDate(settlement.settlement_date)}
                       </div>
                     </div>
-                    {settlement.status === "pending" && (
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleComplete(settlement)}
-                      >
-                        Mark completed
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <Badge variant={settlement.status === "completed" ? "success" : "warning"}>
+                        {settlement.status}
+                      </Badge>
+                      {settlement.status === "pending" && (
+                        <Button variant="secondary" size="sm" onClick={() => setCompleteTarget(settlement)}>
+                          <CheckCircle2 aria-hidden="true" /> Mark completed
+                        </Button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
           </Card>
-        </>
+        </div>
       )}
-    </div>
+
+      <Modal
+        open={showSettle}
+        onClose={resetSettlement}
+        title="Record a settlement"
+        icon={ArrowDownUp}
+        labelledBy="settlement-title"
+        footer={
+          <>
+            <Button variant="secondary" onClick={resetSettlement} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" form="settlement-form" disabled={!canSubmit} loading={saving}>
+              Record
+            </Button>
+          </>
+        }
+      >
+        <form id="settlement-form" onSubmit={handleSettlement}>
+          <div className="grid-2 gap-2">
+            <Select
+              label="Who pays"
+              name="payerId"
+              required
+              options={memberOptions}
+              value={payerId}
+              onChange={(e) => setPayerId(e.target.value)}
+            />
+            <Select
+              label="Who receives"
+              name="receiverId"
+              required
+              options={memberOptions}
+              value={receiverId}
+              onChange={(e) => setReceiverId(e.target.value)}
+            />
+          </div>
+          <Input
+            label="Amount"
+            name="amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            required
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          {Number(payerId) > 0 && Number(payerId) === Number(receiverId) && (
+            <p className="form-error">Payer and receiver must be different users.</p>
+          )}
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        open={Boolean(completeTarget)}
+        onClose={() => setCompleteTarget(null)}
+        onConfirm={handleComplete}
+        title="Mark settlement completed"
+        message={
+          completeTarget
+            ? `Mark the ${formatMoney(completeTarget.amount)} settlement from ${completeTarget.payer?.name} to ${completeTarget.receiver?.name} as completed?`
+            : ""
+        }
+        confirmLabel="Mark completed"
+        loading={completing}
+      />
+    </>
   );
 }

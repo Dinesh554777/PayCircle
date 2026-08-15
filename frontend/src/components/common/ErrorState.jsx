@@ -1,9 +1,9 @@
 import { AlertCircle, RefreshCw } from "lucide-react";
 
-export default function ErrorState({ title = "Something went wrong", message, onRetry, className = "" }) {
+export default function ErrorState({ title = "Something went wrong", message, onRetry, compact = false, className = "" }) {
   return (
     <div className={`error-state ${className}`} role="alert">
-      <AlertCircle aria-hidden="true" style={{ width: 28, height: 28, color: "var(--danger)" }} />
+      <AlertCircle aria-hidden="true" style={{ width: compact ? 20 : 28, height: compact ? 20 : 28, color: "var(--danger)" }} />
       <div className="error-title">{title}</div>
       {message && <div className="error-text">{message}</div>}
       {onRetry && (

@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Sparkles, Lightbulb, TrendingUp } from "lucide-react";
 import Card from "./common/Card";
-import Skeleton from "./common/Skeleton";
+import Skeleton, { SkeletonText } from "./common/Skeleton";
 import ErrorState from "./common/ErrorState";
 import EmptyState from "./common/EmptyState";
 import ProgressBar from "./common/ProgressBar";
 import Badge from "./common/Badge";
 import { apiRequest } from "../api/client";
 import { formatMoney } from "../utils/format";
-import { CATEGORY_COLORS } from "../constants/categories";
+import { getCategoryConfig } from "../constants/categories";
 
 function MiniStat({ label, value }) {
   return (
@@ -54,7 +54,7 @@ export default function AIInsights() {
           <Sparkles aria-hidden="true" className="text-primary" />
           <h3 className="mb-0">AI Insights</h3>
         </div>
-        <Skeleton lines={3} />
+        <SkeletonText lines={3} />
         <div className="grid-4 mt-3">
           <Skeleton />
           <Skeleton />
@@ -116,7 +116,7 @@ export default function AIInsights() {
               <ProgressBar
                 value={Number(cat.amount)}
                 max={maxCategory}
-                color={CATEGORY_COLORS[cat.category]?.color || "var(--primary)"}
+                color={getCategoryConfig(cat.category).color}
               />
             </div>
           ))}

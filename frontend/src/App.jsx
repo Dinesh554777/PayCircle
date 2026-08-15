@@ -12,7 +12,9 @@ import GroupBalances from "./pages/GroupBalances";
 import GroupTransactions from "./pages/GroupTransactions";
 import Profile from "./pages/Profile";
 import Chat from "./pages/Chat";
+import Insights from "./pages/Insights";
 import AdminPage from "./pages/AdminPage";
+import Notifications from "./pages/Notifications";
 import Layout from "./components/Layout";
 
 function ProtectedRoute({ children }) {
@@ -69,6 +71,8 @@ function AppRoutes() {
         <Route path="/groups/:id/transactions" element={<GroupTransactions />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/chat" element={<Chat />} />
+        <Route path="/insights" element={<Insights />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route
           path="/admin"
           element={

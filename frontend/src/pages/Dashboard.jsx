@@ -1,13 +1,26 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Plus, UserPlus, Receipt, Wallet, TrendingUp, AlertCircle } from "lucide-react";
 import Card from "../components/common/Card";
-import Input from "../components/common/Input";
+import Select from "../components/common/Select";
 import Button from "../components/common/Button";
+import StatCard from "../components/common/StatCard";
+import EmptyState from "../components/common/EmptyState";
+import ErrorState from "../components/common/ErrorState";
+import Skeleton, { SkeletonText } from "../components/common/Skeleton";
+import GroupCard from "../components/groups/GroupCard";
+import TransactionItem from "../components/transactions/TransactionItem";
 import AIInsights from "../components/AIInsights";
 import SpendingPrediction from "../components/SpendingPrediction";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { formatDate, formatMoney } from "../utils/format";
+import { formatMoney } from "../utils/format";
+
+const ChartsGrid = lazy(() =>
+  import("../components/dashboard/Charts").then((module) => ({
+    default: module.ChartsGrid,
+  }))
+);
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -43,253 +56,173 @@ export default function Dashboard() {
   }
 
   const firstName = user?.name ? user.name.split(" ")[0] : "there";
+  const hasGroups = data ? data.recent_groups.length > 0 : false;
 
   const stats = data
     ? [
-        { label: "Total Expenses", value: formatMoney(data.total_expenses), color: "#1f2937" },
-        { label: "Amount Paid", value: formatMoney(data.amount_paid), color: "#4f46e5" },
-        { label: "Amount Owed", value: formatMoney(data.amount_owed), color: "#dc2626" },
-        { label: "Amount to Receive", value: formatMoney(data.amount_to_receive), color: "#15803d" },
+        {
+          label: "Total Expenses",
+          value: formatMoney(data.total_expenses),
+          countUp: Number(data.total_expenses || 0),
+          icon: Wallet,
+          tone: "primary",
+        },
+        {
+          label: "Amount Paid",
+          value: formatMoney(data.amount_paid),
+          countUp: Number(data.amount_paid || 0),
+          icon: Receipt,
+          tone: "info",
+        },
+        {
+          label: "Amount Owed",
+          value: formatMoney(data.amount_owed),
+          countUp: Number(data.amount_owed || 0),
+          icon: AlertCircle,
+          tone: "danger",
+        },
+        {
+          label: "Amount to Receive",
+          value: formatMoney(data.amount_to_receive),
+          countUp: Number(data.amount_to_receive || 0),
+          icon: TrendingUp,
+          tone: "success",
+        },
       ]
     : [];
 
   return (
-    <div style={{ maxWidth: 960 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "1rem",
-        }}
-      >
+    <>
+      <div className="flex justify-between items-end gap-3 wrap mb-4">
         <div>
-          <h1 style={{ marginBottom: "0.25rem" }}>Dashboard</h1>
-          <p style={{ color: "#6b7280", marginTop: 0 }}>
-            Welcome back, {firstName}. Here's your money at a glance.
-          </p>
+          <h2 className="mb-1">Welcome back, {firstName}.</h2>
+          <p className="text-secondary mb-0">Here's your money at a glance.</p>
         </div>
-        {data && data.recent_groups.length > 0 ? (
-          <form
-            onSubmit={handleQuickAdd}
-            style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}
-          >
-            <div style={{ width: 180 }}>
-              <Input
-                label="Group"
-                name="quickGroup"
-                type="select"
-                options={data.recent_groups.map((g) => ({ id: g.id, name: g.name }))}
-                value={quickGroupId}
-                onChange={(e) => setQuickGroupId(e.target.value)}
-              />
-            </div>
-            <Button type="submit" style={{ marginBottom: "1rem" }}>
-              Quick Add Expense
-            </Button>
-          </form>
-        ) : (
-          <Link to="/groups">
-            <Button>Create a Group</Button>
-          </Link>
+        {!loading && !error && data && (
+          hasGroups ? (
+            <form onSubmit={handleQuickAdd} className="flex gap-2 items-end wrap">
+              <div style={{ width: 190 }}>
+                <Select
+                  label="Group"
+                  name="quickGroup"
+                  options={data.recent_groups.map((g) => ({ value: String(g.id), label: g.name }))}
+                  value={quickGroupId}
+                  onChange={(e) => setQuickGroupId(e.target.value)}
+                />
+              </div>
+              <Button type="submit" variant="primary">
+                <Plus aria-hidden="true" /> Quick Add
+              </Button>
+            </form>
+          ) : (
+            <Link to="/groups">
+              <Button variant="primary">
+                <UserPlus aria-hidden="true" /> Create a Group
+              </Button>
+            </Link>
+          )
         )}
       </div>
 
       {loading ? (
-        <p>Loading dashboard...</p>
-      ) : error ? (
-        <Card title="Something went wrong">
-          <p style={{ color: "#dc2626" }}>{error}</p>
-          <Button onClick={loadDashboard}>Retry</Button>
-        </Card>
-      ) : (
         <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "1rem",
-              marginBottom: "1rem",
-            }}
-          >
+          <div className="grid-4 mb-4">
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+          </div>
+          <Card className="mb-4">
+            <SkeletonText lines={4} />
+          </Card>
+          <Card className="mb-4">
+            <SkeletonText lines={3} />
+          </Card>
+        </>
+      ) : error ? (
+        <ErrorState title="Something went wrong" message={error} onRetry={loadDashboard} />
+      ) : data ? (
+        <>
+          <div className="grid-4 mb-4">
             {stats.map((stat) => (
-              <section
-                key={stat.label}
-                style={{
-                  background: "#fff",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "0.5rem",
-                  padding: "1.25rem",
-                }}
-              >
-                <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-                  {stat.label}
-                </div>
-                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: stat.color }}>
-                  {stat.value}
-                </div>
-              </section>
+              <StatCard key={stat.label} {...stat} />
             ))}
           </div>
+
+          <Suspense
+            fallback={
+              <Card className="mb-4">
+                <SkeletonText lines={4} />
+              </Card>
+            }
+          >
+            <ChartsGrid data={data} />
+          </Suspense>
 
           <SpendingPrediction />
 
           <AIInsights />
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-              gap: "1rem",
-            }}
-          >
+          <div className="grid-2 mb-4">
             <Card title={`Your Groups (${data.group_count})`}>
               {data.recent_groups.length === 0 ? (
-                <p>
-                  No groups yet.{" "}
-                  <Link to="/groups">Create your first group</Link> to start
-                  splitting expenses.
-                </p>
+                <EmptyState
+                  icon={UserPlus}
+                  title="No groups yet"
+                  message={
+                    <>
+                      Create your first group to start splitting expenses.{" "}
+                      <Link to="/groups" className="link">
+                        Get started
+                      </Link>
+                    </>
+                  }
+                />
               ) : (
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                <div className="flex flex-column gap-3">
                   {data.recent_groups.map((group) => (
-                    <li
-                      key={group.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "0.6rem 0",
-                        borderBottom: "1px solid #e5e7eb",
-                      }}
-                    >
-                      <div>
-                        <Link to={`/groups/${group.id}`}>
-                          <strong>{group.name}</strong>
-                        </Link>
-                        <div style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                          {group.member_count} member{group.member_count === 1 ? "" : "s"}
-                          {" · "}
-                          {formatMoney(group.total_expenses)} total
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          fontSize: "0.9rem",
-                          color:
-                            Number(group.my_balance) > 0
-                              ? "#15803d"
-                              : Number(group.my_balance) < 0
-                                ? "#dc2626"
-                                : "#6b7280",
-                        }}
-                      >
-                        {Number(group.my_balance) > 0 ? "+" : ""}
-                        {formatMoney(group.my_balance)}
-                      </div>
-                    </li>
+                    <GroupCard key={group.id} group={group} />
                   ))}
-                </ul>
+                </div>
               )}
               {data.recent_groups.length > 0 && (
-                <p style={{ marginBottom: 0 }}>
-                  <Link to="/groups">View all groups</Link>
+                <p className="mb-0 mt-3">
+                  <Link to="/groups" className="link">
+                    View all groups →
+                  </Link>
                 </p>
               )}
             </Card>
 
             <Card title="Recent Transactions">
               {data.recent_transactions.length === 0 ? (
-                <p>
-                  No activity yet.{" "}
-                  <Link to="/groups">Pick a group</Link> and add an expense to get
-                  started.
-                </p>
+                <EmptyState
+                  icon={Receipt}
+                  title="No activity yet"
+                  message={
+                    <>
+                      Pick a group and add an expense to get started.{" "}
+                      <Link to="/groups" className="link">
+                        Browse groups
+                      </Link>
+                    </>
+                  }
+                />
               ) : (
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                <div className="flex flex-column">
                   {data.recent_transactions.map((item, index) => (
-                    <li
+                    <TransactionItem
                       key={`${item.type}-${item.date}-${index}`}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "0.6rem 0",
-                        borderBottom: "1px solid #e5e7eb",
-                      }}
-                    >
-                      <div>
-                        <div>
-                          {item.type === "expense" ? (
-                            <Link to={`/groups/${item.group?.id}/expenses`}>
-                              <strong>{item.title || "Expense"}</strong>
-                            </Link>
-                          ) : (
-                            <strong>
-                              {item.payer?.name} → {item.receiver?.name}
-                            </strong>
-                          )}
-                          <span
-                            style={{
-                              marginLeft: "0.5rem",
-                              fontSize: "0.75rem",
-                              background:
-                                item.type === "expense" ? "#eef2ff" : "#ecfdf5",
-                              color: item.type === "expense" ? "#4f46e5" : "#047857",
-                              padding: "0.1rem 0.4rem",
-                              borderRadius: "0.25rem",
-                            }}
-                          >
-                            {item.type}
-                          </span>
-                          {item.type === "expense" && item.category && (
-                            <span
-                              style={{
-                                marginLeft: "0.25rem",
-                                fontSize: "0.75rem",
-                                background: "#ecfdf5",
-                                color: "#047857",
-                                padding: "0.1rem 0.4rem",
-                                borderRadius: "0.25rem",
-                              }}
-                            >
-                              {item.category}
-                            </span>
-                          )}
-                          {item.type === "expense" && item.ai_category && (
-                            <span
-                              title="AI-generated category"
-                              style={{
-                                marginLeft: "0.25rem",
-                                fontSize: "0.7rem",
-                                background: "#f5f3ff",
-                                color: "#7c3aed",
-                                padding: "0.1rem 0.35rem",
-                                borderRadius: "0.25rem",
-                                border: "1px solid #ddd6fe",
-                              }}
-                            >
-                              AI
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                          {item.group?.name} · {formatDate(item.date)}
-                        </div>
-                      </div>
-                      <strong style={{ color: "#1f2937" }}>
-                        {formatMoney(item.amount)}
-                      </strong>
-                    </li>
+                      item={item}
+                      groupId={item.group?.id}
+                    />
                   ))}
-                </ul>
+                </div>
               )}
             </Card>
           </div>
         </>
-      )}
-    </div>
+      ) : null}
+    </>
   );
 }

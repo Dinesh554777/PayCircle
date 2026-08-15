@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
+import { Shield, Users, Users2, Receipt, Handshake, Activity, Wallet } from "lucide-react";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
+import StatCard from "../components/common/StatCard";
+import Badge from "../components/common/Badge";
+import Skeleton from "../components/common/Skeleton";
+import ErrorState from "../components/common/ErrorState";
+import { useToast } from "../components/common/Toast";
 import { apiRequest } from "../api/client";
 import { formatDate, formatMoney } from "../utils/format";
 
@@ -10,13 +16,12 @@ export default function AdminPage() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [actionError, setActionError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const toast = useToast();
 
   function loadData() {
     setLoading(true);
     setError("");
-    setActionError("");
     Promise.all([
       apiRequest("/admin/stats", { auth: true }),
       apiRequest("/admin/users", { auth: true }),
@@ -37,7 +42,6 @@ export default function AdminPage() {
 
   function toggleUserStatus(user) {
     setBusyId(user.id);
-    setActionError("");
     apiRequest(`/admin/users/${user.id}/status`, {
       method: "PATCH",
       auth: true,
@@ -45,159 +49,101 @@ export default function AdminPage() {
     })
       .then((updated) => {
         setUsers((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+        toast.success(`${updated.name} is now ${updated.is_active ? "active" : "disabled"}`);
       })
-      .catch((err) => setActionError(err.message))
+      .catch((err) => toast.error(err.message))
       .finally(() => setBusyId(null));
   }
 
   if (loading) {
-    return <p>Loading admin dashboard...</p>;
+    return (
+      <div className="grid-3">
+        <Skeleton type="card" style={{ height: 120 }} />
+        <Skeleton type="card" style={{ height: 120 }} />
+        <Skeleton type="card" style={{ height: 120 }} />
+        <Skeleton type="card" style={{ height: 320 }} />
+        <Skeleton type="card" style={{ height: 320 }} />
+      </div>
+    );
   }
 
   if (error) {
-    return (
-      <Card title="Something went wrong">
-        <p style={{ color: "#dc2626" }}>{error}</p>
-        <Button onClick={loadData}>Retry</Button>
-      </Card>
-    );
+    return <ErrorState title="Something went wrong" message={error} onRetry={loadData} />;
   }
 
   const statCards = stats
     ? [
-        { label: "Total Users", value: stats.total_users },
-        { label: "Active Users", value: stats.active_users },
-        { label: "Total Groups", value: stats.total_groups },
-        { label: "Total Expenses", value: stats.total_expenses },
-        { label: "Total Settlements", value: stats.total_settlements },
-        { label: "Total Transactions", value: stats.total_transactions },
+        { label: "Total Users", value: String(stats.total_users), icon: Users, tone: "primary" },
+        { label: "Active Users", value: String(stats.active_users), icon: Users2, tone: "success" },
+        { label: "Total Groups", value: String(stats.total_groups), icon: Users2, tone: "info" },
+        { label: "Total Expenses", value: String(stats.total_expenses), icon: Receipt, tone: "warning" },
+        { label: "Total Settlements", value: String(stats.total_settlements), icon: Handshake, tone: "danger" },
+        { label: "Total Transactions", value: String(stats.total_transactions), icon: Activity, tone: "neutral" },
+        { label: "Amount Spent", value: formatMoney(stats.total_amount_spent), countUp: Number(stats.total_amount_spent || 0), icon: Wallet, tone: "primary" },
       ]
     : [];
 
   return (
-    <div style={{ maxWidth: 960 }}>
-      <div>
-        <h1 style={{ marginBottom: "0.25rem" }}>Admin Dashboard</h1>
-        <p style={{ color: "#6b7280", marginTop: 0 }}>
-          System overview, user management and platform statistics.
-        </p>
+    <>
+      <div className="flex justify-between items-end gap-3 wrap mb-4">
+        <div>
+          <h2 className="mb-1">
+            <Shield aria-hidden="true" style={{ verticalAlign: "middle" }} /> Admin Dashboard
+          </h2>
+          <p className="text-secondary mb-0">System overview, user management and platform statistics.</p>
+        </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: "1rem",
-          marginBottom: "1rem",
-        }}
-      >
+      <div className="grid-3 mb-4">
         {statCards.map((stat) => (
-          <section
-            key={stat.label}
-            style={{
-              background: "#fff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "0.5rem",
-              padding: "1.25rem",
-            }}
-          >
-            <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-              {stat.label}
-            </div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{stat.value}</div>
-          </section>
+          <StatCard key={stat.label} {...stat} />
         ))}
-        <section
-          style={{
-            background: "#fff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "0.5rem",
-            padding: "1.25rem",
-          }}
-        >
-          <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-            Amount Spent
-          </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
-            {formatMoney(stats?.total_amount_spent)}
-          </div>
-        </section>
       </div>
 
-      {actionError && (
-        <p
-          style={{
-            color: "#dc2626",
-            background: "#fef2f2",
-            padding: "0.5rem 0.75rem",
-            borderRadius: "0.375rem",
-            marginTop: 0,
-          }}
-        >
-          {actionError}
-        </p>
-      )}
-
-      <Card title={`Users (${users.length})`}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+      <Card title={`Users (${users.length})`} className="mb-4">
+        <div className="table-responsive">
+          <table className="table table-hover">
             <thead>
-              <tr style={{ textAlign: "left", color: "#6b7280", fontSize: "0.875rem" }}>
-                <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Name</th>
-                <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Email</th>
-                <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Role</th>
-                <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Groups</th>
-                <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Status</th>
-                <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Joined</th>
-                <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}></th>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Groups</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: "1rem", color: "#6b7280" }}>
-                    No users yet.
-                  </td>
+                  <td colSpan={7}>No users yet.</td>
                 </tr>
               ) : (
                 users.map((user) => (
-                  <tr key={user.id} style={{ fontSize: "0.9rem" }}>
-                    <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                      <strong>{user.name}</strong>
+                  <tr key={user.id}>
+                    <td className="text-semibold">{user.name}</td>
+                    <td>{user.email}</td>
+                    <td>
+                      <Badge variant={user.is_admin ? "primary" : "neutral"}>
+                        {user.is_admin ? "Admin" : "Member"}
+                      </Badge>
                     </td>
-                    <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                      {user.email}
-                    </td>
-                    <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                      {user.is_admin ? "Admin" : "Member"}
-                    </td>
-                    <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                      {user.groups_count}
-                    </td>
-                    <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                      <span
-                        style={{
-                          background: user.is_active ? "#ecfdf5" : "#fee2e2",
-                          color: user.is_active ? "#047857" : "#b91c1c",
-                          padding: "0.1rem 0.5rem",
-                          borderRadius: "0.25rem",
-                          fontSize: "0.75rem",
-                        }}
-                      >
+                    <td>{user.groups_count}</td>
+                    <td>
+                      <Badge variant={user.is_active ? "success" : "danger"}>
                         {user.is_active ? "Active" : "Disabled"}
-                      </span>
+                      </Badge>
                     </td>
-                    <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                      {formatDate(user.created_at)}
-                    </td>
-                    <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
+                    <td>{formatDate(user.created_at)}</td>
+                    <td style={{ textAlign: "right" }}>
                       {!user.is_admin && (
                         <Button
                           type="button"
-                          onClick={() => toggleUserStatus(user)}
-                          disabled={busyId === user.id}
+                          size="sm"
                           variant={user.is_active ? "danger" : "primary"}
-                          style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem" }}
+                          onClick={() => toggleUserStatus(user)}
+                          loading={busyId === user.id}
                         >
                           {user.is_active ? "Disable" : "Enable"}
                         </Button>
@@ -211,52 +157,38 @@ export default function AdminPage() {
         </div>
       </Card>
 
-      <div style={{ marginTop: "1.5rem" }}>
-        <Card title={`Groups (${groups.length})`}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
-              <thead>
-                <tr style={{ textAlign: "left", color: "#6b7280", fontSize: "0.875rem" }}>
-                  <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Name</th>
-                  <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Description</th>
-                  <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Members</th>
-                  <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Expenses</th>
-                  <th style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>Created</th>
+      <Card title={`Groups (${groups.length})`}>
+        <div className="table-responsive">
+          <table className="table table-hover">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Members</th>
+                <th>Expenses</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>No groups yet.</td>
                 </tr>
-              </thead>
-              <tbody>
-                {groups.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ padding: "1rem", color: "#6b7280" }}>
-                      No groups yet.
-                    </td>
+              ) : (
+                groups.map((group) => (
+                  <tr key={group.id}>
+                    <td className="text-semibold">{group.name}</td>
+                    <td>{group.description || "—"}</td>
+                    <td>{group.member_count}</td>
+                    <td>{group.expense_count}</td>
+                    <td>{formatDate(group.created_at)}</td>
                   </tr>
-                ) : (
-                  groups.map((group) => (
-                    <tr key={group.id} style={{ fontSize: "0.9rem" }}>
-                      <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                        <strong>{group.name}</strong>
-                      </td>
-                      <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                        {group.description || "—"}
-                      </td>
-                      <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                        {group.member_count}
-                      </td>
-                      <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                        {group.expense_count}
-                      </td>
-                      <td style={{ padding: "0.5rem", borderBottom: "1px solid #e5e7eb" }}>
-                        {formatDate(group.created_at)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-    </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </>
   );
 }

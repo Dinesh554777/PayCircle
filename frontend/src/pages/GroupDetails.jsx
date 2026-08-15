@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { Plus, ArrowLeft, UserMinus, LogOut, Mail } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
+import ConfirmModal from "../components/common/ConfirmModal";
+import Badge from "../components/common/Badge";
+import Avatar from "../components/common/Avatar";
+import Skeleton from "../components/common/Skeleton";
+import ErrorState from "../components/common/ErrorState";
+import { useToast } from "../components/common/Toast";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { formatDate } from "../utils/format";
@@ -13,27 +20,37 @@ export default function GroupDetails() {
   const { user } = useAuth();
   const [group, setGroup] = useState(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [email, setEmail] = useState("");
   const [adding, setAdding] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  function setActiveGroup() {
+    if (user?.id) {
+      localStorage.setItem(`paycircle_active_group_${user.id}`, String(id));
+    }
+  }
 
   async function loadGroup() {
     try {
       const data = await apiRequest(`/groups/${id}`, { auth: true });
       setGroup(data);
+      setError("");
     } catch (err) {
       setError(err.message);
     }
   }
 
   useEffect(() => {
+    setActiveGroup();
     loadGroup();
   }, [id]);
 
   async function handleAddMember(event) {
     event.preventDefault();
     setError("");
-    setNotice("");
     setAdding(true);
     try {
       await apiRequest(`/groups/${id}/members`, {
@@ -42,165 +59,180 @@ export default function GroupDetails() {
         auth: true,
       });
       setEmail("");
-      setNotice("Member added");
+      toast.success("Member added");
       await loadGroup();
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
     } finally {
       setAdding(false);
     }
   }
 
-  async function handleRemoveMember(userId, name) {
-    setError("");
-    setNotice("");
-    if (!window.confirm(`Remove ${name} from this group?`)) return;
+  async function handleRemoveMember() {
+    if (!removeTarget) return;
+    setBusy(true);
     try {
-      await apiRequest(`/groups/${id}/members/${userId}`, {
+      await apiRequest(`/groups/${id}/members/${removeTarget.user_id}`, {
         method: "DELETE",
         auth: true,
       });
+      setRemoveTarget(null);
+      toast.success(`${removeTarget.user?.name} removed`);
       await loadGroup();
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleLeave() {
-    setError("");
-    if (!window.confirm("Leave this group? You will lose access to it.")) return;
+    setBusy(true);
     try {
       await apiRequest(`/groups/${id}/leave`, { method: "DELETE", auth: true });
+      setConfirmLeave(false);
+      toast.success("You left the group");
       navigate("/groups");
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
     }
   }
 
   if (error && !group) {
     return (
-      <div>
-        <h1>Group</h1>
-        <p style={{ color: "#dc2626" }}>{error}</p>
-        <Link to="/groups">Back to groups</Link>
-      </div>
+      <ErrorState
+        title="Couldn't load this group"
+        message={error}
+        onRetry={loadGroup}
+      />
     );
   }
 
   if (!group) {
-    return <p>Loading...</p>;
+    return (
+      <Card>
+        <Skeleton lines={4} />
+      </Card>
+    );
   }
 
   const canRemove = (member) =>
     member.user_id !== group.created_by && member.user_id !== user?.id;
 
   return (
-    <div style={{ maxWidth: 640 }}>
-      <Link to="/groups">&larr; Back to groups</Link>
-      <h1>{group.name}</h1>
-      <p>{group.description || "No description"}</p>
-      <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-        Created by {group.creator?.name} on {formatDate(group.created_at)}
-      </p>
+    <>
+      <Link to="/groups" className="btn btn-ghost btn-sm mb-3">
+        <ArrowLeft aria-hidden="true" /> Back to groups
+      </Link>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-          marginBottom: "1rem",
-        }}
-      >
-        <Link to={`/groups/${id}/expenses`}>
-          <Button>Expenses</Button>
-        </Link>
-        <Link to={`/groups/${id}/balances`}>
-          <Button>Balances</Button>
-        </Link>
-        <Link to={`/groups/${id}/transactions`}>
-          <Button>Transactions</Button>
-        </Link>
-        <Button variant="secondary" onClick={handleLeave}>
-          Leave Group
-        </Button>
+      <div className="flex justify-between items-start gap-3 wrap mb-4">
+        <div>
+          <h2 className="mb-1">
+            {group.name}{" "}
+            <Badge variant="neutral">
+              {group.members.length} member{group.members.length === 1 ? "" : "s"}
+            </Badge>
+          </h2>
+          {group.description && <p className="text-secondary mb-1">{group.description}</p>}
+          <p className="text-muted text-sm mb-0">
+            Created by {group.creator?.name || "someone"} on {formatDate(group.created_at)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 wrap">
+          <Link to={`/groups/${id}/expenses/new`}>
+            <Button variant="primary" size="sm">
+              <Plus aria-hidden="true" /> Add Expense
+            </Button>
+          </Link>
+          <Button variant="secondary" size="sm" onClick={() => setConfirmLeave(true)}>
+            <LogOut aria-hidden="true" /> Leave Group
+          </Button>
+        </div>
       </div>
 
-      {notice && (
-        <p style={{ color: "#15803d", fontSize: "0.875rem" }}>{notice}</p>
-      )}
-      {error && (
-        <p style={{ color: "#dc2626", fontSize: "0.875rem" }}>{error}</p>
-      )}
+      <div className="flex items-center gap-2 wrap mb-4">
+        <Link to={`/groups/${id}/expenses`} className="btn btn-secondary btn-sm">
+          Expenses
+        </Link>
+        <Link to={`/groups/${id}/balances`} className="btn btn-secondary btn-sm">
+          Balances
+        </Link>
+        <Link to={`/groups/${id}/transactions`} className="btn btn-secondary btn-sm">
+          Transactions
+        </Link>
+      </div>
 
       <Card title={`Members (${group.members.length})`}>
-        <form onSubmit={handleAddMember}>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
-            <div style={{ flex: 1 }}>
-              <Input
-                label="Add member by email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <Button type="submit" disabled={adding} style={{ marginBottom: "1rem" }}>
-              {adding ? "Adding..." : "Add"}
-            </Button>
+        <form onSubmit={handleAddMember} className="flex gap-2 items-end wrap mb-3">
+          <div style={{ flex: 1, minWidth: 220, maxWidth: 320 }}>
+            <Input
+              label="Add member by email"
+              name="email"
+              type="email"
+              icon={Mail}
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
+          <Button type="submit" loading={adding}>
+            Add Member
+          </Button>
         </form>
 
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {group.members.map((member) => (
-            <li
-              key={member.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "0.5rem 0",
-                borderBottom: "1px solid #e5e7eb",
-              }}
-            >
-              <div>
-                <strong>{member.user?.name}</strong>{" "}
-                {member.user_id === group.created_by && (
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      background: "#eef2ff",
-                      color: "#4f46e5",
-                      padding: "0.1rem 0.4rem",
-                      borderRadius: "0.25rem",
-                    }}
-                  >
-                    creator
-                  </span>
-                )}
-                <div style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                  {member.user?.email} &middot; joined {formatDate(member.joined_at)}
+        <ul className="member-list">
+          {group.members.map((member) => {
+            const isCreator = member.user_id === group.created_by;
+            return (
+              <li key={member.id} className="member-row">
+                <Avatar name={member.user?.name} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-semibold">{member.user?.name}</span>
+                    {isCreator && <Badge variant="primary">creator</Badge>}
+                    {member.user_id === user?.id && <Badge variant="neutral">you</Badge>}
+                  </div>
+                  <div className="text-muted text-sm">
+                    {member.user?.email} · joined {formatDate(member.joined_at)}
+                  </div>
                 </div>
-              </div>
-              {canRemove(member) && (
-                <button
-                  type="button"
-                  onClick={() => handleRemoveMember(member.user_id, member.user?.name)}
-                  style={{
-                    border: "none",
-                    background: "none",
-                    color: "#dc2626",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  Remove
-                </button>
-              )}
-            </li>
-          ))}
+                {canRemove(member) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-danger"
+                    onClick={() => setRemoveTarget(member)}
+                  >
+                    <UserMinus aria-hidden="true" /> Remove
+                  </Button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </Card>
-    </div>
+
+      <ConfirmModal
+        open={Boolean(removeTarget)}
+        onClose={() => setRemoveTarget(null)}
+        onConfirm={handleRemoveMember}
+        title="Remove member"
+        message={`Remove ${removeTarget?.user?.name} from this group? They will lose access to group expenses.`}
+        confirmLabel="Remove"
+        loading={busy}
+      />
+
+      <ConfirmModal
+        open={confirmLeave}
+        onClose={() => setConfirmLeave(false)}
+        onConfirm={handleLeave}
+        title="Leave group"
+        message="Leave this group? You will lose access to it."
+        confirmLabel="Leave"
+        loading={busy}
+      />
+    </>
   );
 }

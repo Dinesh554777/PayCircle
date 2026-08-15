@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Card from "../components/common/Card";
+import { Mail, Lock } from "lucide-react";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
+import AuthShell from "../components/auth/AuthShell";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
@@ -27,38 +28,40 @@ export default function Login() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: "4rem auto" }}>
-      <Card title="Login to PayCircle">
-        <form onSubmit={handleSubmit}>
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          {error && (
-            <p style={{ color: "#dc2626", fontSize: "0.875rem", marginBottom: "1rem" }}>
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={submitting} style={{ width: "100%" }}>
-            {submitting ? "Logging in..." : "Login"}
-          </Button>
-        </form>
-        <p style={{ textAlign: "center", marginBottom: 0 }}>
-          No account? <Link to="/register">Register</Link>
-        </p>
-      </Card>
-    </div>
+    <AuthShell title="Welcome back" subtitle="Log in to manage your shared expenses.">
+      <form onSubmit={handleSubmit} className="flex flex-column gap-3">
+        <Input
+          label="Email"
+          name="email"
+          type="email"
+          icon={Mail}
+          required
+          autoComplete="email"
+          autoFocus
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <Input
+          label="Password"
+          name="password"
+          type="password"
+          icon={Lock}
+          required
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        {error && <p className="form-error mb-0">{error}</p>}
+        <Button type="submit" loading={submitting} className="w-full" size="lg">
+          Login
+        </Button>
+      </form>
+      <p className="auth-foot">
+        No account?{" "}
+        <Link to="/register" className="link">
+          Register
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

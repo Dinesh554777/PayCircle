@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import Card from "../components/common/Card";
-import Input from "../components/common/Input";
+import { Plus, Users, UserPlus } from "lucide-react";
 import Button from "../components/common/Button";
+import Input from "../components/common/Input";
+import Modal from "../components/common/Modal";
+import SearchBar from "../components/common/SearchBar";
+import EmptyState from "../components/common/EmptyState";
+import ErrorState from "../components/common/ErrorState";
+import Skeleton from "../components/common/Skeleton";
+import { useToast } from "../components/common/Toast";
+import GroupCard from "../components/groups/GroupCard";
 import { apiRequest } from "../api/client";
-import { formatDate } from "../utils/format";
 
 export default function Groups() {
   const [groups, setGroups] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
@@ -15,11 +22,13 @@ export default function Groups() {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
 
   async function loadGroups() {
     try {
       const data = await apiRequest("/groups", { auth: true });
       setGroups(data);
+      setFiltered(data);
       setLoadError("");
     } catch (err) {
       setLoadError(err.message);
@@ -31,6 +40,19 @@ export default function Groups() {
   useEffect(() => {
     loadGroups();
   }, []);
+
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    setFiltered(
+      q
+        ? groups.filter(
+            (g) =>
+              g.name.toLowerCase().includes(q) ||
+              (g.description || "").toLowerCase().includes(q)
+          )
+        : groups
+    );
+  }, [query, groups]);
 
   async function handleCreate(event) {
     event.preventDefault();
@@ -45,6 +67,7 @@ export default function Groups() {
       setName("");
       setDescription("");
       setShowCreate(false);
+      toast.success("Group created");
       await loadGroups();
     } catch (err) {
       setError(err.message);
@@ -54,70 +77,94 @@ export default function Groups() {
   }
 
   return (
-    <div style={{ maxWidth: 640 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h1>Groups</h1>
-        <Button onClick={() => setShowCreate((v) => !v)}>
-          {showCreate ? "Cancel" : "Create Group"}
+    <>
+      <div className="flex justify-between items-center gap-3 wrap mb-4">
+        <div>
+          <h2 className="mb-1">Groups</h2>
+          <p className="text-secondary mb-0">
+            Manage groups and split shared expenses with friends.
+          </p>
+        </div>
+        <Button variant="primary" onClick={() => setShowCreate(true)}>
+          <Plus aria-hidden="true" /> New Group
         </Button>
       </div>
 
-      {showCreate && (
-        <Card title="Create a new group">
-          <form onSubmit={handleCreate}>
-            <Input
-              label="Group Name"
-              name="name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Input
-              label="Description (optional)"
-              name="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            {error && (
-              <p style={{ color: "#dc2626", fontSize: "0.875rem", marginBottom: "1rem" }}>
-                {error}
-              </p>
-            )}
-            <Button type="submit" disabled={creating}>
-              {creating ? "Creating..." : "Create"}
-            </Button>
-          </form>
-        </Card>
+      {groups.length > 0 && (
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Search groups by name or description…"
+          className="mb-4"
+        />
       )}
 
       {loading ? (
-        <p>Loading...</p>
+        <div className="grid-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} type="card" style={{ height: 160 }} />
+          ))}
+        </div>
       ) : loadError ? (
-        <Card title="Something went wrong">
-          <p style={{ color: "#dc2626" }}>{loadError}</p>
-          <Button onClick={loadGroups}>Retry</Button>
-        </Card>
+        <ErrorState title="Couldn't load groups" message={loadError} onRetry={loadGroups} />
       ) : groups.length === 0 ? (
-        <Card title="No groups yet">
-          <p>Create a group to start tracking shared expenses with friends.</p>
-        </Card>
+        <EmptyState
+          icon={Users}
+          title="No groups yet"
+          message="Create a group to start tracking shared expenses with friends."
+          action={
+            <Button variant="primary" onClick={() => setShowCreate(true)}>
+              <UserPlus aria-hidden="true" /> Create your first group
+            </Button>
+          }
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState title="No matches" message={`No groups match "${query}".`} />
       ) : (
-        groups.map((group) => (
-          <Card key={group.id} title={group.name}>
-            <p>{group.description || "No description"}</p>
-            <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-              Created {formatDate(group.created_at)}
-            </p>
-            <Link to={`/groups/${group.id}`}>View group</Link>
-          </Card>
-        ))
+        <div className="grid-3">
+          {filtered.map((group) => (
+            <GroupCard key={group.id} group={group} />
+          ))}
+        </div>
       )}
-    </div>
+
+      <Modal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Create a new group"
+        icon={Users}
+        labelledBy="create-group-title"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowCreate(false)} disabled={creating}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-group-form" loading={creating}>
+              Create
+            </Button>
+          </>
+        }
+      >
+        <form id="create-group-form" onSubmit={handleCreate}>
+          <Input
+            label="Group Name"
+            name="name"
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Input
+            label="Description (optional)"
+            name="description"
+            textarea
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          {error && <p className="form-error">{error}</p>}
+        </form>
+      </Modal>
+    </>
   );
 }

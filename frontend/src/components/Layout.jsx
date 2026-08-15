@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -18,7 +18,6 @@ import {
   ChevronLeft,
   Wallet,
 } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import Avatar from "./common/Avatar";

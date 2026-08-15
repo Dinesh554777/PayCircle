@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
+import { LineChart as LineChartIcon } from "lucide-react";
 import Card from "./common/Card";
+import Skeleton, { SkeletonText } from "./common/Skeleton";
+import EmptyState from "./common/EmptyState";
+import Badge from "./common/Badge";
 import { apiRequest } from "../api/client";
 import { formatMoney } from "../utils/format";
 
@@ -16,8 +20,12 @@ export default function SpendingPrediction() {
 
   if (loading) {
     return (
-      <Card title="Spending Prediction">
-        <p>Loading prediction...</p>
+      <Card className="mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <LineChartIcon aria-hidden="true" className="text-primary" />
+          <h3 className="mb-0">Spending Prediction</h3>
+        </div>
+        <SkeletonText lines={2} />
       </Card>
     );
   }
@@ -25,44 +33,42 @@ export default function SpendingPrediction() {
   if (!data) return null;
 
   return (
-    <Card title="Spending Prediction">
+    <Card className="mb-4">
+      <div className="card-title-row">
+        <span className="flex items-center gap-2">
+          <LineChartIcon aria-hidden="true" className="text-primary" />
+          <h3 className="mb-0">Spending Prediction</h3>
+          <Badge variant="primary">AI</Badge>
+        </span>
+      </div>
+
       {data.has_prediction ? (
         <>
-          <p style={{ marginTop: 0 }}>
-            Estimated spending for <strong>{data.period_label}</strong>:{" "}
-            <span
-              style={{ fontWeight: 700, fontSize: "1.25rem", color: "#4f46e5" }}
-            >
-              {formatMoney(data.predicted_amount)}
-            </span>
+          <p className="text-secondary mb-3">
+            Estimated spending for <strong className="text-primary">{data.period_label}</strong>:
           </p>
-          <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>{data.message}</p>
+          <div className="prediction-amount">{formatMoney(data.predicted_amount)}</div>
+          <p className="text-secondary text-sm">{data.message}</p>
           {data.based_on_months.length > 0 && (
-            <div style={{ marginTop: "0.5rem" }}>
+            <div className="insight-block">
+              <h4 className="insight-block-title">Based on your history</h4>
               {data.based_on_months.map((month) => (
-                <div
-                  key={month.month}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "0.875rem",
-                    padding: "0.25rem 0",
-                    borderBottom: "1px solid #f3f4f6",
-                  }}
-                >
-                  <span>{month.label}</span>
-                  <span style={{ color: "#6b7280" }}>
-                    {formatMoney(month.amount)}
-                  </span>
+                <div key={month.month} className="month-row">
+                  <span className="text-secondary">{month.label}</span>
+                  <span className="text-semibold">{formatMoney(month.amount)}</span>
                 </div>
               ))}
             </div>
           )}
         </>
       ) : (
-        <p style={{ marginTop: 0 }}>{data.message}</p>
+        <EmptyState
+          title="No prediction yet"
+          message={data.message || "Add more expenses to unlock spending predictions."}
+        />
       )}
-      <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: 0 }}>
+
+      <p className="text-muted text-xs mb-0">
         Based on your monthly spending history. Rough estimate only.
       </p>
     </Card>
