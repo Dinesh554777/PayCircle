@@ -2,6 +2,7 @@ export default function Button({ children, type = "button", variant = "primary",
   const styles = {
     primary: { background: "#4f46e5", color: "#fff" },
     secondary: { background: "#e5e7eb", color: "#1f2937" },
+    danger: { background: "#dc2626", color: "#fff" },
   };
 
   return (

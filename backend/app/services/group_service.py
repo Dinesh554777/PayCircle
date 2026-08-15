@@ -6,11 +6,13 @@ from app.models.group_member import GroupMember
 from app.models.user import User
 from app.schemas.group import GroupCreate
 from app.services.base import BaseService
+from app.services.notification_service import NotificationService, NotificationType
 
 
 class GroupService(BaseService[Group]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, Group)
+        self.notifications = NotificationService(db)
 
     def create_group(self, data: GroupCreate, creator: User) -> Group:
         group = self.create(
@@ -65,6 +67,14 @@ class GroupService(BaseService[Group]):
 
         member = GroupMember(group_id=group.id, user_id=user.id, role=data.role)
         self.db.add(member)
+        self.notifications.create_notification(
+            user.id,
+            NotificationType.ADDED_TO_GROUP,
+            "Added to group",
+            f"{actor.name} added you to the group '{group.name}'.",
+            group_id=group.id,
+            related_id=group.id,
+        )
         self.db.commit()
         self.db.refresh(member)
         return member
@@ -93,7 +103,16 @@ class GroupService(BaseService[Group]):
                 status_code=404, detail="User is not a member of this group"
             )
 
+        removed_user = self.db.get(User, user_id)
         self.db.delete(membership)
+        self.notifications.create_notification(
+            user_id,
+            NotificationType.GROUP_ACTIVITY,
+            "Removed from group",
+            f"{actor.name} removed you from the group '{group.name}'.",
+            group_id=group.id,
+            related_id=group.id,
+        )
         self.db.commit()
 
     def leave_group(self, group_id: int, user: User) -> None:
@@ -104,4 +123,15 @@ class GroupService(BaseService[Group]):
                 status_code=404, detail="You are not a member of this group"
             )
         self.db.delete(membership)
+        for member in self.get_members(group.id):
+            if member.user_id == user.id:
+                continue
+            self.notifications.create_notification(
+                member.user_id,
+                NotificationType.GROUP_ACTIVITY,
+                "Group update",
+                f"{user.name} left the group '{group.name}'.",
+                group_id=group.id,
+                related_id=group.id,
+            )
         self.db.commit()

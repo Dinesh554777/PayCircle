@@ -1,16 +1,27 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.routes.api import api_router
+from app.utils.bootstrap import promote_admin_emails
 from app.utils.errors import install_exception_handlers
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    promote_admin_emails()
+    yield
+
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="AI-Powered Shared Expense Management System",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

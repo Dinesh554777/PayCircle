@@ -22,4 +22,5 @@ def test_database_check_endpoint(client):
         "expense_splits",
         "settlements",
         "transactions",
+        "notifications",
     }

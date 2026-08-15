@@ -12,11 +12,19 @@ import GroupBalances from "./pages/GroupBalances";
 import GroupTransactions from "./pages/GroupTransactions";
 import Profile from "./pages/Profile";
 import Chat from "./pages/Chat";
+import AdminPage from "./pages/AdminPage";
 import Layout from "./components/Layout";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+function AdminRoute({ children }) {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!user?.is_admin) return <Navigate to="/dashboard" replace />;
+  return children;
 }
 
 function PublicOnly({ children }) {
@@ -61,6 +69,14 @@ function AppRoutes() {
         <Route path="/groups/:id/transactions" element={<GroupTransactions />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/chat" element={<Chat />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPage />
+            </AdminRoute>
+          }
+        />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

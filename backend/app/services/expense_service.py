@@ -11,13 +11,17 @@ from app.models.group_member import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.base import BaseService
+from app.services.balance_service import BalanceService
 from app.services.group_service import GroupService
+from app.services.notification_service import NotificationService, NotificationType
 
 
 class ExpenseService(BaseService[Expense]):
     def __init__(self, db: Session, categorizer: GroqCategorizer | None = None) -> None:
         super().__init__(db, Expense)
         self.groups = GroupService(db)
+        self.balances = BalanceService(db)
+        self.notifications = NotificationService(db)
         self.categorizer = categorizer or GroqCategorizer()
 
     def _resolve_category(self, data) -> tuple[str | None, str | None, float | None]:
@@ -173,8 +177,54 @@ class ExpenseService(BaseService[Expense]):
                 description=f"Expense: {data.title}",
             )
         )
+        self._notify_expense_added(group, expense, actor)
+        self._notify_payment_reminders(group, actor)
         self.db.commit()
         return expense
+
+    def _notify_expense_added(self, group: Group, expense: Expense, actor: User) -> None:
+        payer = self.db.get(User, expense.payer_id)
+        payer_name = payer.name if payer else actor.name
+        title = "New expense"
+        message = (
+            f"{payer_name} added expense '{expense.title}' of "
+            f"₹{expense.amount:,.2f} in group '{group.name}'."
+        )
+        for member_id in self._member_ids(group):
+            if member_id == expense.payer_id:
+                continue
+            self.notifications.create_notification(
+                member_id,
+                NotificationType.EXPENSE_ADDED,
+                title,
+                message,
+                group_id=group.id,
+                related_id=expense.id,
+            )
+
+    def _notify_payment_reminders(self, group: Group, actor: User) -> None:
+        try:
+            balances = self.balances.get_balances(group.id, actor)
+        except HTTPException:
+            return
+        for item in balances.balances:
+            if item.net_balance >= 0:
+                continue
+            if item.user_id == actor.id:
+                continue
+            if self.notifications.has_unread(
+                item.user_id, NotificationType.REMINDER, group.id
+            ):
+                continue
+            self.notifications.create_notification(
+                item.user_id,
+                NotificationType.REMINDER,
+                "Payment reminder",
+                f"You owe ₹{abs(item.net_balance):,.2f} in group '{group.name}'. "
+                "Consider settling up.",
+                group_id=group.id,
+                related_id=group.id,
+            )
 
     def list_group_expenses(self, group_id: int, actor: User) -> list[Expense]:
         self.groups.get_group_for_user(group_id, actor)

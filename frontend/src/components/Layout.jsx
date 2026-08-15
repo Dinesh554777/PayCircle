@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import NotificationBell from "./NotificationBell";
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -16,6 +17,9 @@ export default function Layout() {
     { to: "/chat", label: "AI Chat" },
     { to: "/profile", label: "Profile" },
   ];
+  if (user?.is_admin) {
+    navItems.push({ to: "/admin", label: "Admin" });
+  }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -67,7 +71,17 @@ export default function Layout() {
           Logout
         </button>
       </aside>
-      <main style={{ flex: 1, padding: "2rem" }}>
+      <main style={{ flex: 1, padding: "2rem", position: "relative" }}>
+        <div
+          style={{
+            position: "absolute",
+            top: "1.5rem",
+            right: "2rem",
+            zIndex: 40,
+          }}
+        >
+          <NotificationBell />
+        </div>
         <Outlet />
       </main>
     </div>
