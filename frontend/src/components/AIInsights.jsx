@@ -6,16 +6,17 @@ import ErrorState from "./common/ErrorState";
 import EmptyState from "./common/EmptyState";
 import ProgressBar from "./common/ProgressBar";
 import Badge from "./common/Badge";
+import MagicCard from "./magicui/MagicCard";
 import { apiRequest } from "../api/client";
 import { formatMoney } from "../utils/format";
 import { getCategoryConfig } from "../constants/categories";
 
 function MiniStat({ label, value }) {
   return (
-    <div className="stat-mini">
+    <MagicCard className="stat-mini stat-mini-magic">
       <div className="stat-mini-label">{label}</div>
       <div className="stat-mini-value">{value}</div>
-    </div>
+    </MagicCard>
   );
 }
 

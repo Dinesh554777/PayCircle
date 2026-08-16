@@ -1,0 +1,179 @@
+/* ============================================================
+   Magic UI components (lightweight, theme-var based)
+   Adapted to PayCircle's existing design system. Dark mode is
+   automatic via variables.css; reduced motion is respected.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   Magic Card
+   ------------------------------------------------------------ */
+.magic-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: inherit;
+  border: 1px solid transparent;
+}
+
+.magic-card-surface {
+  position: absolute;
+  inset: 1px;
+  z-index: 20;
+  border-radius: inherit;
+  background: var(--card-background);
+}
+
+.magic-card-spotlight {
+  pointer-events: none;
+  position: absolute;
+  inset: 1px;
+  z-index: 30;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.magic-card:hover .magic-card-spotlight,
+.magic-card:focus-within .magic-card-spotlight {
+  opacity: var(--mc-gradient-opacity, 0.8);
+}
+
+.magic-card-reduced:hover .magic-card-spotlight,
+.magic-card-reduced:focus-within .magic-card-spotlight {
+  opacity: 0;
+}
+
+.magic-card-orb {
+  position: absolute;
+  pointer-events: none;
+  z-index: 30;
+  will-change: transform, opacity;
+}
+
+.magic-card-content {
+  position: relative;
+  z-index: 40;
+}
+
+/* Stat card rendered as a Magic Card */
+.stat-card-magic,
+.stat-card-magic:hover {
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-lg);
+}
+
+/* Mini stat rendered as a Magic Card */
+.stat-mini-magic {
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius);
+}
+
+/* Group card rendered as a Magic Card */
+.group-card-magic {
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+
+.group-card-magic:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Smart feature cards on the dashboard */
+.smart-feature-card {
+  border-radius: var(--radius-lg);
+  height: 100%;
+}
+
+/* Highlighted "Ask PayCircle" card */
+.smart-feature-card-accent {
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25),
+    0 10px 30px -12px rgba(99, 102, 241, 0.4);
+}
+
+/* ------------------------------------------------------------
+   Number Ticker
+   ------------------------------------------------------------ */
+.number-ticker {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+/* ------------------------------------------------------------
+   Animated List
+   ------------------------------------------------------------ */
+.animated-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.animated-list-item {
+  width: 100%;
+}
+
+.animated-list-stretch {
+  align-items: stretch;
+}
+
+.animated-list-gap-0 {
+  gap: 0;
+}
+
+.animated-list-gap-2 {
+  gap: var(--space-2);
+}
+
+/* ------------------------------------------------------------
+   Empty state entrance
+   ------------------------------------------------------------ */
+.empty-state {
+  animation: emptyIn 0.35s ease;
+}
+
+@keyframes emptyIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ------------------------------------------------------------
+   Magic primary button sheen (selective CTAs only)
+   ------------------------------------------------------------ */
+.btn-magic {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-magic::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -130%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  transition: left 0.55s ease;
+  pointer-events: none;
+}
+
+.btn-magic:hover::after {
+  left: 130%;
+}

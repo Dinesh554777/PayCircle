@@ -3,7 +3,8 @@ import Card from "./common/Card";
 import Badge from "./common/Badge";
 import EmptyState from "./common/EmptyState";
 import ProgressBar from "./common/ProgressBar";
-import { formatMoney } from "../utils/format";
+import NumberTicker from "./magicui/NumberTicker";
+import { CURRENCY_SYMBOL, formatMoney } from "../utils/format";
 
 export default function BudgetCard({ budget }) {
   if (!budget) return null;
@@ -50,7 +51,10 @@ export default function BudgetCard({ budget }) {
         />
       ) : (
         <>
-          <div className="text-3xl text-bold text-primary mb-1">{formatMoney(current)}</div>
+          <div className="text-3xl text-bold text-primary mb-1">
+            {CURRENCY_SYMBOL}
+            <NumberTicker value={current} decimalPlaces={2} />
+          </div>
           <p className="text-secondary text-sm mb-3">
             Spent so far in {budget.current_month_label}
             {budget.current_count > 0

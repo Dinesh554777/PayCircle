@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 import AIInsights from "../components/AIInsights";
 import SpendingPrediction from "../components/SpendingPrediction";
+import BlurFade from "../components/magicui/BlurFade";
 
 export default function Insights() {
   return (
@@ -16,8 +17,12 @@ export default function Insights() {
         </div>
       </div>
 
-      <SpendingPrediction />
-      <AIInsights />
+      <BlurFade delay={0.04} duration={0.4}>
+        <SpendingPrediction />
+      </BlurFade>
+      <BlurFade delay={0.1} duration={0.4}>
+        <AIInsights />
+      </BlurFade>
     </>
   );
 }

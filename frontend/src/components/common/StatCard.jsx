@@ -1,5 +1,8 @@
 import useCountUp from "../../hooks/useCountUp";
-import { formatMoney } from "../../utils/format";
+import NumberTicker from "../magicui/NumberTicker";
+import MagicCard from "../magicui/MagicCard";
+import { CURRENCY_SYMBOL, formatMoney } from "../../utils/format";
+import { cn } from "../../lib/utils";
 
 const ICON_TINTS = {
   primary: { background: "var(--primary-soft-bg)", color: "var(--primary)" },
@@ -20,15 +23,18 @@ export default function StatCard({
   progress,
   valueColor,
   className = "",
+  magic = false,
 }) {
   const animate = countUp !== false;
   const numeric = Number(countUp !== false ? countUp : 0) || 0;
-  const animated = useCountUp(numeric, { enabled: animate });
+
+  const animateViaHook = animate && !magic;
+  const animated = useCountUp(animateViaHook ? numeric : 0, { enabled: animateViaHook });
   const tint = ICON_TINTS[tone] || ICON_TINTS.primary;
   const displayValue = animate ? formatMoney(animated) : value;
 
-  return (
-    <section className={`stat-card ${className}`}>
+  const body = (
+    <>
       <div className="stat-head">
         <span className="stat-label">{label}</span>
         {Icon && (
@@ -37,12 +43,27 @@ export default function StatCard({
           </span>
         )}
       </div>
-      <div
-        className="stat-value"
-        style={valueColor ? { color: valueColor } : undefined}
-      >
-        {displayValue}
-      </div>
+      {animate && magic ? (
+        <div
+          className="stat-value"
+          style={valueColor ? { color: valueColor } : undefined}
+        >
+          {CURRENCY_SYMBOL}
+          <NumberTicker
+            value={numeric}
+            decimalPlaces={2}
+            startValue={0}
+            className="number-ticker"
+          />
+        </div>
+      ) : (
+        <div
+          className="stat-value"
+          style={valueColor ? { color: valueColor } : undefined}
+        >
+          {displayValue}
+        </div>
+      )}
       {note && <div className="stat-note">{note}</div>}
       {typeof progress === "number" && (
         <div className="progress stat-progress">
@@ -55,6 +76,16 @@ export default function StatCard({
           />
         </div>
       )}
-    </section>
+    </>
+  );
+
+  if (!magic) {
+    return <section className={cn("stat-card", className)}>{body}</section>;
+  }
+
+  return (
+    <MagicCard className={cn("stat-card", "stat-card-magic", className)}>
+      {body}
+    </MagicCard>
   );
 }

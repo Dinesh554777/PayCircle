@@ -23,6 +23,7 @@ import Avatar from "./common/Avatar";
 import Dropdown from "./common/Dropdown";
 import GlobalSearch from "./GlobalSearch";
 import NotificationBell from "./NotificationBell";
+import BlurFade from "./magicui/BlurFade";
 import logo from "../assests/PayCircle.png.png";
 
 function activeGroupKey(userId) {
@@ -215,8 +216,18 @@ export default function Layout() {
         </header>
 
         <main className="content">
-          <div className="page route-fade">
-            <Outlet />
+          <div className="page">
+            <BlurFade
+              key={location.pathname}
+              duration={0.35}
+              offset={5}
+              variant={{
+                hidden: { y: 5, opacity: 0 },
+                visible: { y: 0, opacity: 1 },
+              }}
+            >
+              <Outlet />
+            </BlurFade>
           </div>
         </main>
       </div>

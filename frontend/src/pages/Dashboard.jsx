@@ -15,6 +15,8 @@ import SpendingPrediction from "../components/SpendingPrediction";
 import BudgetCard from "../components/BudgetCard";
 import ActivityTimeline from "../components/ActivityTimeline";
 import SmartFeatures from "../components/SmartFeatures";
+import BlurFade from "../components/magicui/BlurFade";
+import AnimatedList from "../components/magicui/AnimatedList";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { formatMoney } from "../utils/format";
@@ -113,13 +115,13 @@ export default function Dashboard() {
                   onChange={(e) => setQuickGroupId(e.target.value)}
                 />
               </div>
-              <Button type="submit" variant="primary">
+              <Button type="submit" variant="primary" className="btn-magic">
                 <Plus aria-hidden="true" /> Quick Add
               </Button>
             </form>
           ) : (
             <Link to="/groups">
-              <Button variant="primary">
+              <Button variant="primary" className="btn-magic">
                 <UserPlus aria-hidden="true" /> Create a Group
               </Button>
             </Link>
@@ -148,92 +150,111 @@ export default function Dashboard() {
         <>
           <div className="grid-4 mb-4">
             {stats.map((stat) => (
-              <StatCard key={stat.label} {...stat} />
+              <BlurFade key={stat.label} delay={0.05} duration={0.4} className="h-full">
+                <StatCard magic {...stat} className="h-full" />
+              </BlurFade>
             ))}
           </div>
 
-          <Suspense
-            fallback={
-              <Card className="mb-4">
-                <SkeletonText lines={4} />
+          <BlurFade delay={0.12} duration={0.4}>
+            <Suspense
+              fallback={
+                <Card className="mb-4">
+                  <SkeletonText lines={4} />
+                </Card>
+              }
+            >
+              <ChartsGrid data={data} />
+            </Suspense>
+          </BlurFade>
+
+          <BlurFade delay={0.16} duration={0.4}>
+            <BudgetCard budget={data.analytics?.budget} />
+          </BlurFade>
+
+          <BlurFade delay={0.2} duration={0.4}>
+            <SmartFeatures
+              groupId={data.recent_groups.length > 0 ? data.recent_groups[0].id : null}
+            />
+          </BlurFade>
+
+          <BlurFade delay={0.24} duration={0.4}>
+            <SpendingPrediction />
+          </BlurFade>
+
+          <BlurFade delay={0.28} duration={0.4}>
+            <AIInsights />
+          </BlurFade>
+
+          <BlurFade delay={0.32} duration={0.4}>
+            <div className="grid-2 mb-4">
+              <Card title={`Your Groups (${data.group_count})`}>
+                {data.recent_groups.length === 0 ? (
+                  <EmptyState
+                    icon={UserPlus}
+                    title="No groups yet"
+                    message={
+                      <>
+                        Create your first group to start splitting expenses.{" "}
+                        <Link to="/groups" className="link">
+                          Get started
+                        </Link>
+                      </>
+                    }
+                  />
+                ) : (
+                  <div className="flex flex-column gap-3">
+                    {data.recent_groups.map((group) => (
+                      <GroupCard key={group.id} group={group} magic />
+                    ))}
+                  </div>
+                )}
+                {data.recent_groups.length > 0 && (
+                  <p className="mb-0 mt-3">
+                    <Link to="/groups" className="link">
+                      View all groups →
+                    </Link>
+                  </p>
+                )}
               </Card>
-            }
-          >
-            <ChartsGrid data={data} />
-          </Suspense>
 
-          <BudgetCard budget={data.analytics?.budget} />
+              <Card title="Recent Transactions">
+                {data.recent_transactions.length === 0 ? (
+                  <EmptyState
+                    icon={Receipt}
+                    title="No activity yet"
+                    message={
+                      <>
+                        Pick a group and add an expense to get started.{" "}
+                        <Link to="/groups" className="link">
+                          Browse groups
+                        </Link>
+                      </>
+                    }
+                  />
+                ) : (
+                  <AnimatedList
+                    delay={140}
+                    className="animated-list-stretch animated-list-gap-0"
+                  >
+                    {data.recent_transactions.map((item, index) => (
+                      <TransactionItem
+                        key={`${item.type}-${item.date}-${index}`}
+                        item={item}
+                        groupId={item.group?.id}
+                      />
+                    ))}
+                  </AnimatedList>
+                )}
+              </Card>
+            </div>
+          </BlurFade>
 
-          <SmartFeatures
-            groupId={data.recent_groups.length > 0 ? data.recent_groups[0].id : null}
-          />
-
-          <SpendingPrediction />
-
-          <AIInsights />
-
-          <div className="grid-2 mb-4">
-            <Card title={`Your Groups (${data.group_count})`}>
-              {data.recent_groups.length === 0 ? (
-                <EmptyState
-                  icon={UserPlus}
-                  title="No groups yet"
-                  message={
-                    <>
-                      Create your first group to start splitting expenses.{" "}
-                      <Link to="/groups" className="link">
-                        Get started
-                      </Link>
-                    </>
-                  }
-                />
-              ) : (
-                <div className="flex flex-column gap-3">
-                  {data.recent_groups.map((group) => (
-                    <GroupCard key={group.id} group={group} />
-                  ))}
-                </div>
-              )}
-              {data.recent_groups.length > 0 && (
-                <p className="mb-0 mt-3">
-                  <Link to="/groups" className="link">
-                    View all groups →
-                  </Link>
-                </p>
-              )}
+          <BlurFade delay={0.36} duration={0.4}>
+            <Card title="Recent Activity" className="mb-4">
+              <ActivityTimeline items={data.recent_activity} />
             </Card>
-
-            <Card title="Recent Transactions">
-              {data.recent_transactions.length === 0 ? (
-                <EmptyState
-                  icon={Receipt}
-                  title="No activity yet"
-                  message={
-                    <>
-                      Pick a group and add an expense to get started.{" "}
-                      <Link to="/groups" className="link">
-                        Browse groups
-                      </Link>
-                    </>
-                  }
-                />
-              ) : (
-                <div className="flex flex-column">
-                  {data.recent_transactions.map((item, index) => (
-                    <TransactionItem
-                      key={`${item.type}-${item.date}-${index}`}
-                      item={item}
-                      groupId={item.group?.id}
-                    />
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
-
-          <Card title="Recent Activity" className="mb-4">
-            <ActivityTimeline items={data.recent_activity} />
-          </Card>
+          </BlurFade>
         </>
       ) : null}
     </>
