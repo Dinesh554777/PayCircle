@@ -5,9 +5,23 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.settlement import SettlementCreate, SettlementRead, SettlementUpdate
+from app.schemas.settlement_optimizer import SettlementSuggestionOut
+from app.services.settlement_optimizer import SettlementOptimizerService
 from app.services.settlement_service import SettlementService
 
 router = APIRouter()
+
+
+@router.get(
+    "/groups/{group_id}/settlement-suggestions",
+    response_model=SettlementSuggestionOut,
+)
+def get_settlement_suggestions(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return SettlementOptimizerService(db).get_suggestions(group_id, current_user)
 
 
 @router.post(

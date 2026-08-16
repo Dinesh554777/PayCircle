@@ -1,5 +1,6 @@
-import { Wallet, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
+import logo from "../../assests/PayCircle.png.png";
 
 export default function AuthShell({ title, subtitle, children }) {
   const { theme, toggleTheme } = useTheme();
@@ -18,7 +19,7 @@ export default function AuthShell({ title, subtitle, children }) {
       <div className="auth-card">
         <div className="auth-brand">
           <span className="auth-logo">
-            <Wallet aria-hidden="true" />
+            <img src={logo} alt="PayCircle logo" className="auth-logo-img" />
           </span>
           <span className="auth-name">PayCircle</span>
         </div>

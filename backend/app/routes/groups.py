@@ -11,6 +11,8 @@ from app.schemas.group import (
     MemberAdd,
     MemberRead,
 )
+from app.schemas.group_health import GroupHealthOut
+from app.services.group_health import GroupHealthService
 from app.services.group_service import GroupService
 
 router = APIRouter()
@@ -52,6 +54,15 @@ def list_members(
 ):
     GroupService(db).get_group_for_user(group_id, current_user)
     return GroupService(db).get_members(group_id)
+
+
+@router.get("/{group_id}/health", response_model=GroupHealthOut)
+def get_group_health(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return GroupHealthService(db).calculate(group_id, current_user)
 
 
 @router.post(

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Receipt } from "lucide-react";
+import { ArrowLeft, Receipt, ScanLine } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
@@ -9,6 +9,7 @@ import Badge from "../components/common/Badge";
 import ErrorState from "../components/common/ErrorState";
 import Skeleton from "../components/common/Skeleton";
 import Avatar from "../components/common/Avatar";
+import ReceiptModal from "../components/ReceiptModal";
 import { apiRequest } from "../api/client";
 import { CURRENCY_SYMBOL } from "../utils/format";
 
@@ -41,6 +42,7 @@ export default function ExpenseForm() {
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -152,6 +154,13 @@ export default function ExpenseForm() {
     };
   }
 
+  function handleUseReceipt(info) {
+    setTitle(info.title);
+    setAmount(info.amount);
+    if (info.category) setCategory(info.category);
+    if (info.expenseDate) setExpenseDate(info.expenseDate);
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
@@ -225,6 +234,11 @@ export default function ExpenseForm() {
             {isEdit ? "Update the expense details below." : "Split a new expense with your group."}
           </p>
         </div>
+        {!isEdit && (
+          <Button variant="secondary" onClick={() => setShowReceipt(true)}>
+            <ScanLine aria-hidden="true" /> Scan Receipt
+          </Button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} style={{ maxWidth: 560 }}>
@@ -401,6 +415,12 @@ export default function ExpenseForm() {
           </Link>
         </div>
       </form>
+
+      <ReceiptModal
+        open={showReceipt}
+        onClose={() => setShowReceipt(false)}
+        onUseReceipt={handleUseReceipt}
+      />
     </>
   );
 }

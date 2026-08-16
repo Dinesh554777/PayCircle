@@ -27,7 +27,7 @@ def _agent(db):
 def test_tools_are_registered(db_session):
     agent = _agent(db_session)
     tools = agent.list_tools()
-    assert len(tools) == 6
+    assert len(tools) == 7
     names = {tool["name"] for tool in tools}
     assert {
         "get_expenses",
@@ -36,6 +36,7 @@ def test_tools_are_registered(db_session):
         "calculate_spending",
         "get_category_summary",
         "get_monthly_summary",
+        "get_settlement_suggestions",
     } <= names
 
 
@@ -139,6 +140,42 @@ def test_agent_guidance_for_unrelated_question(db_session):
     alice, bob, group = _setup(db_session)
     answer = _agent(db_session).answer("What is the meaning of life?", alice)
     assert "Try asking about" in answer
+
+
+def test_get_settlement_suggestions(db_session):
+    alice, bob, group = _setup(db_session)
+    result = _agent(db_session).run_tool(
+        "get_settlement_suggestions", alice, group_id=group.id
+    )
+    entry = result["groups"][0]
+    assert entry["name"] == "Trip"
+    assert entry["settled_up"] is False
+    assert entry["payment_count"] == 1
+    assert entry["total_amount"] == 100.0
+    assert entry["suggestions"][0] == {
+        "payer": "Bob",
+        "receiver": "Alice",
+        "amount": 100.0,
+    }
+
+
+def test_settlement_suggestions_reject_non_member(db_session):
+    alice, bob, group = _setup(db_session)
+    carol = make_user(db_session, "Carol")
+    with pytest.raises(HTTPException) as exc:
+        _agent(db_session).run_tool(
+            "get_settlement_suggestions", carol, group_id=group.id
+        )
+    assert exc.value.status_code == 403
+
+
+def test_agent_answers_settlement_question(db_session):
+    alice, bob, group = _setup(db_session)
+    answer = _agent(db_session).answer(
+        "How should we settle up in my trip group?", alice
+    )
+    assert "1 payment" in answer
+    assert "Bob pays Alice ₹100.00" in answer
 
 
 def test_unknown_tool_raises(db_session):

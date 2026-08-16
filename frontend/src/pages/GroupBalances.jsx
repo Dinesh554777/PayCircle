@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowDownUp, CheckCircle2, Handshake } from "lucide-react";
+import { ArrowLeft, ArrowDownUp, CheckCircle2, Handshake, Sparkles } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
@@ -21,6 +21,7 @@ export default function GroupBalances() {
   const [group, setGroup] = useState(null);
   const [balances, setBalances] = useState(null);
   const [settlements, setSettlements] = useState([]);
+  const [suggestions, setSuggestions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const toast = useToast();
@@ -33,17 +34,23 @@ export default function GroupBalances() {
   const [completeTarget, setCompleteTarget] = useState(null);
   const [completing, setCompleting] = useState(false);
 
+  const [showAll, setShowAll] = useState(false);
+  const [confirmSettle, setConfirmSettle] = useState(null);
+  const [settling, setSettling] = useState(false);
+
   function loadAll() {
     setLoading(true);
     Promise.all([
       apiRequest(`/groups/${id}`, { auth: true }),
       apiRequest(`/groups/${id}/balances`, { auth: true }),
       apiRequest(`/groups/${id}/settlements`, { auth: true }),
+      apiRequest(`/groups/${id}/settlement-suggestions`, { auth: true }),
     ])
-      .then(([g, b, s]) => {
+      .then(([g, b, s, sug]) => {
         setGroup(g);
         setBalances(b);
         setSettlements(s);
+        setSuggestions(sug);
         setError("");
       })
       .catch((err) => setError(err.message))
@@ -96,6 +103,29 @@ export default function GroupBalances() {
       toast.error(err.message);
     } finally {
       setCompleting(false);
+    }
+  }
+
+  async function handleSmartSettle() {
+    if (!confirmSettle) return;
+    setSettling(true);
+    try {
+      await apiRequest(`/groups/${id}/settlements`, {
+        method: "POST",
+        body: {
+          payer_id: confirmSettle.payer_id,
+          receiver_id: confirmSettle.receiver_id,
+          amount: String(confirmSettle.amount),
+        },
+        auth: true,
+      });
+      setConfirmSettle(null);
+      toast.success("Optimized settlement recorded");
+      loadAll();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSettling(false);
     }
   }
 
@@ -187,6 +217,81 @@ export default function GroupBalances() {
               )}
             </Card>
           </div>
+
+          <Card
+            title={
+              <span className="flex items-center gap-2">
+                <Sparkles aria-hidden="true" className="text-primary" /> Smart Settlement
+              </span>
+            }
+          >
+            {!suggestions ? (
+              <EmptyState
+                icon={Sparkles}
+                title="Couldn't load suggestions"
+                message="Refresh the page to recalculate optimized settlements."
+              />
+            ) : suggestions.settled_up ? (
+              <EmptyState
+                icon={Handshake}
+                title="All settled up"
+                message="There's nothing to settle — every member has a zero balance."
+              />
+            ) : (
+              <div>
+                <div className="flex justify-between items-center wrap gap-2 mb-3">
+                  <p className="text-secondary text-sm mb-0">
+                    Clear every outstanding balance in{" "}
+                    <strong>
+                      {suggestions.payment_count}{" "}
+                      payment{suggestions.payment_count === 1 ? "" : "s"}
+                    </strong>{" "}
+                    totalling{" "}
+                    <strong>{formatMoney(suggestions.total_amount)}</strong> instead of
+                    paying everyone separately.
+                  </p>
+                  {suggestions.suggestions.length > 1 && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowAll((prev) => !prev)}
+                    >
+                      {showAll ? "Hide" : "View all"} suggestions (
+                      {suggestions.suggestions.length})
+                    </Button>
+                  )}
+                </div>
+
+                <ul className="member-list">
+                  {(showAll
+                    ? suggestions.suggestions
+                    : suggestions.suggestions.slice(0, 1)
+                  ).map((suggestion, index) => (
+                    <li
+                      key={`${suggestion.payer_id}-${suggestion.receiver_id}-${index}`}
+                      className="member-row"
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div>
+                          <span className="text-semibold">{suggestion.payer?.name}</span>{" "}
+                          <span className="text-secondary">pays</span>{" "}
+                          <span className="text-semibold">{suggestion.receiver?.name}</span>{" "}
+                          <span className="text-secondary">{formatMoney(suggestion.amount)}</span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setConfirmSettle(suggestion)}
+                      >
+                        Settle now
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Card>
 
           <Card title={`Settlement history (${settlements.length})`}>
             {settlements.length === 0 ? (
@@ -291,6 +396,21 @@ export default function GroupBalances() {
         }
         confirmLabel="Mark completed"
         loading={completing}
+      />
+
+      <ConfirmModal
+        open={Boolean(confirmSettle)}
+        onClose={() => setConfirmSettle(null)}
+        onConfirm={handleSmartSettle}
+        title="Record optimized settlement"
+        message={
+          confirmSettle
+            ? `Record the ${formatMoney(confirmSettle.amount)} settlement from ${confirmSettle.payer?.name} to ${confirmSettle.receiver?.name}? This is the suggested payment that clears the group's balances most efficiently.`
+            : ""
+        }
+        confirmLabel="Record settlement"
+        danger={false}
+        loading={settling}
       />
     </>
   );

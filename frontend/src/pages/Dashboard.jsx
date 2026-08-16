@@ -14,6 +14,7 @@ import AIInsights from "../components/AIInsights";
 import SpendingPrediction from "../components/SpendingPrediction";
 import BudgetCard from "../components/BudgetCard";
 import ActivityTimeline from "../components/ActivityTimeline";
+import SmartFeatures from "../components/SmartFeatures";
 import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { formatMoney } from "../utils/format";
@@ -162,6 +163,10 @@ export default function Dashboard() {
           </Suspense>
 
           <BudgetCard budget={data.analytics?.budget} />
+
+          <SmartFeatures
+            groupId={data.recent_groups.length > 0 ? data.recent_groups[0].id : null}
+          />
 
           <SpendingPrediction />
 

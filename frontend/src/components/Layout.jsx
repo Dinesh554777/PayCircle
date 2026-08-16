@@ -16,7 +16,6 @@ import {
   Sun,
   Menu,
   ChevronLeft,
-  Wallet,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -24,6 +23,7 @@ import Avatar from "./common/Avatar";
 import Dropdown from "./common/Dropdown";
 import GlobalSearch from "./GlobalSearch";
 import NotificationBell from "./NotificationBell";
+import logo from "../assests/PayCircle.png.png";
 
 function activeGroupKey(userId) {
   return `paycircle_active_group_${userId}`;
@@ -108,7 +108,7 @@ export default function Layout() {
       >
         <div className="sidebar-brand">
           <span className="sidebar-brand-logo">
-            <Wallet aria-hidden="true" />
+            <img src={logo} alt="PayCircle logo" className="sidebar-brand-img" />
           </span>
           {!collapsed && <span className="sidebar-brand-name">PayCircle</span>}
           <button

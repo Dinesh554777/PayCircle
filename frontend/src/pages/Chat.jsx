@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { MessageSquare, Send, Bot } from "lucide-react";
 import Button from "../components/common/Button";
 import Input from "../components/common/Input";
@@ -7,27 +8,38 @@ import { apiRequest } from "../api/client";
 const EXAMPLE_QUESTIONS = [
   "How much did I spend this month?",
   "What is my highest spending category?",
+  "How should we settle up?",
   "Who should I pay?",
   "Show my recent expenses.",
-  "How can I reduce my spending?",
   "What should I expect to spend next month?",
 ];
 
 export default function Chat() {
+  const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState([
     {
       role: "ai",
-      text: "Hi! I can answer questions about your PayCircle expenses, such as your spending, top categories, recent expenses, who to pay, and a next-month estimate.",
+      text: "Hi! I'm PayCircle's smart assistant. I can answer questions about your spending, top categories, recent expenses, who you owe, and how to settle up efficiently — using only your own data.",
     },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
+  const autoAsked = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
+
+  useEffect(() => {
+    const question = searchParams.get("q");
+    if (question && !autoAsked.current) {
+      autoAsked.current = true;
+      send(question);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function send(text) {
     const message = (text ?? input).trim();
@@ -36,7 +48,7 @@ export default function Chat() {
     setError("");
     setMessages((prev) => [...prev, { role: "user", text: message }]);
     setSending(true);
-    apiRequest("/ai/chat", { method: "POST", body: { message }, auth: true })
+    apiRequest("/ai/agent", { method: "POST", body: { message }, auth: true })
       .then((data) => {
         setMessages((prev) => [...prev, { role: "ai", text: data.answer }]);
       })
@@ -54,7 +66,8 @@ export default function Chat() {
       <div className="mb-4">
         <h2 className="mb-1">AI Assistant</h2>
         <p className="text-secondary mb-0">
-          Ask about your expense data. Answers are based only on your own PayCircle activity.
+          Ask about your expenses, balances, and settlement suggestions. Answers are based only on
+          your own PayCircle activity.
         </p>
       </div>
 

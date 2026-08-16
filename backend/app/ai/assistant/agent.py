@@ -24,6 +24,7 @@ from app.models.settlement import Settlement
 from app.models.user import User
 from app.services.analytics_service import AnalyticsService
 from app.services.balance_service import BalanceService
+from app.services.settlement_optimizer import SettlementOptimizerService
 
 DEFAULT_LIMIT = 5
 
@@ -50,6 +51,10 @@ TOOL_DESCRIPTIONS = {
     "get_monthly_summary": (
         "Monthly spending totals and expense counts over the user's history."
     ),
+    "get_settlement_suggestions": (
+        "Optimized settlement suggestions for a group: the minimum number of "
+        "payments that clears all outstanding balances. Accepts a group_id."
+    ),
 }
 
 MONTH_LABELS = [
@@ -62,7 +67,8 @@ _NO_DATA = "You don't have enough expense data to answer that yet. Add an expens
 _GUIDANCE = (
     "I can help you understand your PayCircle spending. Try asking about: "
     "your spending this month, total spending, highest spending category, "
-    "monthly totals, recent expenses, who you owe, or your group balances."
+    "monthly totals, recent expenses, who you owe, settlement suggestions, "
+    "or your group balances."
 )
 
 
@@ -120,6 +126,11 @@ class ExpenseAgent:
                 name="get_monthly_summary",
                 description=TOOL_DESCRIPTIONS["get_monthly_summary"],
                 handler=self._tool_get_monthly_summary,
+            ),
+            "get_settlement_suggestions": Tool(
+                name="get_settlement_suggestions",
+                description=TOOL_DESCRIPTIONS["get_settlement_suggestions"],
+                handler=self._tool_get_settlement_suggestions,
             ),
         }
 
@@ -333,6 +344,37 @@ class ExpenseAgent:
         ]
         return {"months": months}
 
+    def _tool_get_settlement_suggestions(
+        self, user: User, group_id: int | None = None
+    ) -> dict:
+        groups = self._groups_for(user, group_id)
+        optimizer = SettlementOptimizerService(self.db)
+        result = {"groups": []}
+        for group in groups:
+            suggestions = optimizer.get_suggestions(group.id, user)
+            result["groups"].append(
+                {
+                    "group_id": group.id,
+                    "name": group.name,
+                    "settled_up": suggestions.settled_up,
+                    "payment_count": suggestions.payment_count,
+                    "total_amount": _num(suggestions.total_amount),
+                    "suggestions": [
+                        {
+                            "payer": suggestion.payer.name
+                            if suggestion.payer
+                            else None,
+                            "receiver": suggestion.receiver.name
+                            if suggestion.receiver
+                            else None,
+                            "amount": _num(suggestion.amount),
+                        }
+                        for suggestion in suggestions.suggestions
+                    ],
+                }
+            )
+        return result
+
     # ------------------------------------------------------------- data scope
 
     def _groups_for(self, user: User, group_id: int | None):
@@ -349,6 +391,8 @@ class ExpenseAgent:
         """Keyword-based intent → (tool name, args). Kept tiny and rule-based."""
         text = question.lower()
 
+        if any(word in text for word in ("settle", "settlement", "settlements", "fewer payments", "minimum payments", "how to pay back")):
+            return "get_settlement_suggestions", {}
         if any(word in text for word in ("who should i pay", "who do i owe", "how much do i owe")):
             return "get_group_balance", {}
         if any(word in text for word in ("who owes me", "who owes", "am i owed")):
@@ -398,6 +442,8 @@ class ExpenseAgent:
             return self._respond_expenses(result)
         if tool_name == "get_transactions":
             return self._respond_transactions(result)
+        if tool_name == "get_settlement_suggestions":
+            return self._respond_settlements(result)
         return _GUIDANCE
 
     def _respond_balance(self, result: dict) -> str:
@@ -486,6 +532,28 @@ class ExpenseAgent:
             )
             + "."
         )
+
+    def _respond_settlements(self, result: dict) -> str:
+        groups = result.get("groups") or []
+        if not groups:
+            return _NO_DATA
+        parts = []
+        for group in groups:
+            if group.get("settled_up"):
+                parts.append(f"Great news — everything is already settled in {group['name']}.")
+                continue
+            suggestions = group.get("suggestions") or []
+            steps = "; ".join(
+                f"{item['payer']} pays {item['receiver']} ₹{item['amount']:,.2f}"
+                for item in suggestions
+            )
+            parts.append(
+                f"In {group['name']}, you can clear all balances in "
+                f"{group['payment_count']} payment"
+                f"{'s' if group['payment_count'] != 1 else ''} "
+                f"totalling ₹{group['total_amount']:,.2f}: {steps}."
+            )
+        return " ".join(parts)
 
 
 def _num(value: Decimal | None) -> float:

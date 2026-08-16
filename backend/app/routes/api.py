@@ -15,6 +15,7 @@ from app.routes import (
     insights,
     notifications,
     prediction,
+    receipt,
     search,
     settlements,
     transactions,
@@ -43,3 +44,4 @@ api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(insights.router, prefix="/ai", tags=["ai"])
 api_router.include_router(chat.router, prefix="/ai", tags=["ai"])
 api_router.include_router(prediction.router, prefix="/ai", tags=["ai"])
+api_router.include_router(receipt.router, prefix="/ai", tags=["ai"])
