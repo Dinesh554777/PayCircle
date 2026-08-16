@@ -49,11 +49,11 @@ function useChartTheme() {
   const { theme } = useTheme();
   const dark = theme === "dark";
   return {
-    axis: dark ? "#9aa6ba" : "#6b7280",
-    grid: dark ? "#263349" : "#e5e7eb",
-    tooltipBg: dark ? "#141d2e" : "#ffffff",
-    tooltipBorder: dark ? "#36455e" : "#e5e7eb",
-    text: dark ? "#e6ebf2" : "#1f2937",
+    axis: dark ? "#A1A1AA" : "#71717A",
+    grid: dark ? "#27272A" : "#E4E4E7",
+    tooltipBg: dark ? "#18181B" : "#FFFFFF",
+    tooltipBorder: dark ? "#27272A" : "#E4E4E7",
+    text: dark ? "#FAFAFA" : "#18181B",
   };
 }
 
@@ -132,8 +132,8 @@ export function SpendingTrendChart({ transactions }) {
       <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.02} />
+            <stop offset="0%" stopColor="#6C4BF4" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="#6C4BF4" stopOpacity={0.02} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
@@ -151,10 +151,10 @@ export function SpendingTrendChart({ transactions }) {
         <Area
           type="monotone"
           dataKey="amount"
-          stroke="#4f46e5"
+          stroke="#6C4BF4"
           strokeWidth={2.5}
           fill="url(#spendGradient)"
-          dot={{ r: 3, fill: "#4f46e5" }}
+          dot={{ r: 3, fill: "#6C4BF4" }}
           activeDot={{ r: 5 }}
         />
       </AreaChart>

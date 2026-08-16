@@ -121,7 +121,7 @@ export default function Dashboard() {
             </form>
           ) : (
             <Link to="/groups">
-              <Button variant="primary" className="btn-magic">
+              <Button variant="secondary">
                 <UserPlus aria-hidden="true" /> Create a Group
               </Button>
             </Link>

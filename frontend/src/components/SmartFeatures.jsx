@@ -219,9 +219,9 @@ export default function SmartFeatures({ groupId }) {
       <BlurFade delay={0.22} duration={0.4} className="h-full">
         <MagicCard
           className="smart-feature-card smart-feature-card-accent"
-          gradientFrom="#6366f1"
-          gradientTo="#a78bfa"
-          gradientColor="rgba(99, 102, 241, 0.14)"
+          gradientFrom="#6C4BF4"
+          gradientTo="#8B7CF6"
+          gradientColor="rgba(108, 75, 244, 0.16)"
         >
           <Card title="Ask PayCircle">
             <div>
