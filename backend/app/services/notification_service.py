@@ -11,6 +11,9 @@ class NotificationType:
     ADDED_TO_GROUP = "added_to_group"
     EXPENSE_ADDED = "expense_added"
     SETTLEMENT_RECORDED = "settlement_recorded"
+    PAYMENT_SUCCESSFUL = "payment_successful"
+    PAYMENT_FAILED = "payment_failed"
+    SETTLEMENT_COMPLETED = "settlement_completed"
     REMINDER = "reminder"
     GROUP_ACTIVITY = "group_activity"
 

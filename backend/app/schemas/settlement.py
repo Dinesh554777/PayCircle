@@ -30,4 +30,4 @@ class SettlementRead(BaseModel):
 
 
 class SettlementUpdate(BaseModel):
-    status: Literal["pending", "completed"] = "completed"
+    status: Literal["pending", "processing", "completed", "failed"] = "completed"

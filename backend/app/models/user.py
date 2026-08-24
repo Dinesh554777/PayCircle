@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.group import Group
     from app.models.group_member import GroupMember
     from app.models.notification import Notification
+    from app.models.payment import Payment
     from app.models.settlement import Settlement
     from app.models.transaction import Transaction
 
@@ -44,6 +45,12 @@ class User(TimestampMixin, Base):
     )
     settlements_received: Mapped[list[Settlement]] = relationship(
         foreign_keys="Settlement.receiver_id", back_populates="receiver"
+    )
+    payments_made: Mapped[list[Payment]] = relationship(
+        foreign_keys="Payment.payer_id", back_populates="payer"
+    )
+    payments_received: Mapped[list[Payment]] = relationship(
+        foreign_keys="Payment.receiver_id", back_populates="receiver"
     )
     transactions: Mapped[list[Transaction]] = relationship(back_populates="user")
     notifications: Mapped[list[Notification]] = relationship(back_populates="user")

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Activity } from "lucide-react";
+import { ArrowLeft, Activity, CheckCircle2 } from "lucide-react";
+import Card from "../components/common/Card";
+import Badge from "../components/common/Badge";
 import Button from "../components/common/Button";
 import SearchBar from "../components/common/SearchBar";
 import Select from "../components/common/Select";
@@ -9,6 +11,7 @@ import ErrorState from "../components/common/ErrorState";
 import Skeleton from "../components/common/Skeleton";
 import TransactionItem from "../components/transactions/TransactionItem";
 import { apiRequest } from "../api/client";
+import { formatMoney } from "../utils/format";
 
 const TYPE_OPTIONS = [
   { value: "all", label: "All activity" },
@@ -20,6 +23,7 @@ export default function GroupTransactions() {
   const { id } = useParams();
   const [group, setGroup] = useState(null);
   const [feed, setFeed] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -30,10 +34,12 @@ export default function GroupTransactions() {
     Promise.all([
       apiRequest(`/groups/${id}`, { auth: true }),
       apiRequest(`/groups/${id}/transactions`, { auth: true }),
+      apiRequest("/payments", { auth: true }),
     ])
-      .then(([g, items]) => {
+      .then(([g, items, paymentItems]) => {
         setGroup(g);
         setFeed(items);
+        setPayments(paymentItems.filter((payment) => String(payment.group_id) === String(id)));
         setError("");
       })
       .catch((err) => setError(err.message))
@@ -120,6 +126,34 @@ export default function GroupTransactions() {
               ))}
             </div>
           )}
+
+          <Card title="Payment history" className="mt-4">
+            {payments.length === 0 ? (
+              <EmptyState title="No payments yet" message="Verified settlement payments will appear here." />
+            ) : (
+              <ul className="member-list">
+                {payments.map((payment) => (
+                  <li key={payment.id} className="member-row">
+                    <CheckCircle2 aria-hidden="true" className="text-success" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="text-semibold">
+                        {payment.payer?.name} paid {payment.receiver?.name}
+                      </div>
+                      <div className="text-muted text-sm">
+                        {payment.gateway} · Payment ID: {payment.razorpay_payment_id || payment.razorpay_order_id}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-semibold">{formatMoney(payment.amount)}</div>
+                      <Badge variant={payment.payment_status === "completed" ? "success" : "warning"}>
+                        {payment.payment_status}
+                      </Badge>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </>
       )}
     </>

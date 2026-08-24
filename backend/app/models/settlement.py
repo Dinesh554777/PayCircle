@@ -12,6 +12,7 @@ from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.group import Group
+    from app.models.payment import Payment
     from app.models.user import User
 
 
@@ -35,3 +36,4 @@ class Settlement(TimestampMixin, Base):
     receiver: Mapped[User] = relationship(
         foreign_keys=[receiver_id], back_populates="settlements_received"
     )
+    payment: Mapped[Payment | None] = relationship(back_populates="settlement", uselist=False)

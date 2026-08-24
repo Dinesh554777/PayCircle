@@ -9,6 +9,7 @@ import Modal from "../components/common/Modal";
 import ConfirmModal from "../components/common/ConfirmModal";
 import Badge from "../components/common/Badge";
 import Avatar from "../components/common/Avatar";
+import PaymentButton from "../components/payments/PaymentButton";
 import EmptyState from "../components/common/EmptyState";
 import ErrorState from "../components/common/ErrorState";
 import Skeleton from "../components/common/Skeleton";
@@ -104,6 +105,13 @@ export default function GroupBalances() {
     } finally {
       setCompleting(false);
     }
+  }
+
+  function settlementBadgeVariant(status) {
+    if (status === "completed") return "success";
+    if (status === "failed") return "danger";
+    if (status === "processing") return "primary";
+    return "warning";
   }
 
   async function handleSmartSettle() {
@@ -315,13 +323,36 @@ export default function GroupBalances() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={settlement.status === "completed" ? "success" : "warning"}>
+                      <Badge variant={settlementBadgeVariant(settlement.status)}>
                         {settlement.status}
                       </Badge>
                       {settlement.status === "pending" && (
-                        <Button variant="secondary" size="sm" onClick={() => setCompleteTarget(settlement)}>
-                          <CheckCircle2 aria-hidden="true" /> Mark completed
-                        </Button>
+                        <>
+                          <PaymentButton
+                            settlement={settlement}
+                            onSuccess={() => {
+                              toast.success("Payment completed");
+                              loadAll();
+                            }}
+                            onFailure={(err) => {
+                              toast.error(err.message || "Payment failed");
+                              loadAll();
+                            }}
+                          />
+                          <Button variant="secondary" size="sm" onClick={() => setCompleteTarget(settlement)}>
+                            <CheckCircle2 aria-hidden="true" /> Mark completed
+                          </Button>
+                        </>
+                      )}
+                      {settlement.status === "failed" && (
+                        <PaymentButton
+                          settlement={settlement}
+                          onSuccess={() => {
+                            toast.success("Payment completed");
+                            loadAll();
+                          }}
+                          onFailure={(err) => toast.error(err.message || "Payment failed")}
+                        />
                       )}
                     </div>
                   </li>

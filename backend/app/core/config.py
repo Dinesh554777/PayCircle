@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:5173/auth/callback"
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    GROQ_API_KEY: str = ""
+
+    @property
+    def effective_ai_api_key(self) -> str:
+        return self.GROQ_API_KEY or self.AI_API_KEY
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

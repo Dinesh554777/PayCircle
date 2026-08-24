@@ -14,6 +14,7 @@ from app.routes import (
     health,
     insights,
     notifications,
+    payments,
     prediction,
     receipt,
     search,
@@ -31,6 +32,7 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(groups.router, prefix="/groups", tags=["groups"])
 api_router.include_router(expenses.router, tags=["expenses"])
 api_router.include_router(settlements.router, tags=["settlements"])
+api_router.include_router(payments.router, prefix="/payments", tags=["payments"])
 api_router.include_router(transactions.router, tags=["transactions"])
 api_router.include_router(balances.router, tags=["balances"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
