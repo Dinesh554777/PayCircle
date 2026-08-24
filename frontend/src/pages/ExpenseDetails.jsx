@@ -101,8 +101,9 @@ export default function ExpenseDetails() {
             <div>
               <dt>Paid by</dt>
               <dd className="flex items-center gap-2">
-                <Avatar name={expense.paid_by_user?.name} size="sm" />
-                {expense.paid_by_user?.name || "—"}
+                {(expense.payments?.length
+                  ? expense.payments.map((p) => p.user?.name || `User ${p.user_id}`).join(", ")
+                  : expense.paid_by_user?.name) || "—"}
               </dd>
             </div>
             <div>
@@ -116,6 +117,30 @@ export default function ExpenseDetails() {
               </div>
             )}
           </dl>
+        </Card>
+
+        <Card title={`Paid (${expense.payments?.length || 0})`}>
+          <ul className="member-list">
+            {(expense.payments?.length
+              ? expense.payments
+              : [
+                  {
+                    id: "legacy",
+                    user_id: expense.paid_by,
+                    amount: expense.amount,
+                    user: expense.paid_by_user,
+                  },
+                ]
+            ).map((payment) => (
+              <li key={payment.id} className="member-row">
+                <Avatar name={payment.user?.name} size="sm" />
+                <span className="text-secondary" style={{ flex: 1 }}>
+                  {payment.user?.name}
+                </span>
+                <span className="text-semibold">{formatMoney(payment.amount)}</span>
+              </li>
+            ))}
+          </ul>
         </Card>
 
         <Card title={`Split (${expense.splits.length})`}>

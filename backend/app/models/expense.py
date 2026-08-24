@@ -11,6 +11,7 @@ from app.core.database import Base
 from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.expense_payment import ExpensePayment
     from app.models.expense_split import ExpenseSplit
     from app.models.group import Group
     from app.models.user import User
@@ -34,3 +35,8 @@ class Expense(TimestampMixin, Base):
     group: Mapped[Group] = relationship(back_populates="expenses")
     payer: Mapped[User] = relationship(back_populates="expenses_paid")
     splits: Mapped[list[ExpenseSplit]] = relationship(back_populates="expense")
+    payments: Mapped[list[ExpensePayment]] = relationship(
+        back_populates="expense",
+        cascade="all, delete-orphan",
+        order_by="ExpensePayment.id",
+    )

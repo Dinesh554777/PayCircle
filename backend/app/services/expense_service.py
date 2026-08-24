@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.categorization import GroqCategorizer
 from app.models.expense import Expense
+from app.models.expense_payment import ExpensePayment
 from app.models.expense_split import ExpenseSplit
 from app.models.group import Group
 from app.models.group_member import GroupMember
@@ -51,6 +52,45 @@ class ExpenseService(BaseService[Expense]):
                 status_code=400,
                 detail=f"User {user_id} is not a member of this group",
             )
+
+    def resolve_payments(self, data, member_ids: set[int]) -> list[tuple[int, Decimal]]:
+        """Validate and normalize payer records; falls back to a single
+        legacy payer when no explicit payment list is supplied."""
+        if not data.payments:
+            self._require_member(data.paid_by, member_ids)
+            return [(data.paid_by, data.amount)]
+
+        seen: set[int] = set()
+        normalized: list[tuple[int, Decimal]] = []
+        for item in data.payments:
+            self._require_member(item.user_id, member_ids)
+            if item.user_id in seen:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Duplicate payer in payment list",
+                )
+            if item.amount <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Payment amounts cannot be negative or zero",
+                )
+            seen.add(item.user_id)
+            normalized.append((item.user_id, item.amount))
+
+        total = sum((amount for _, amount in normalized), Decimal("0"))
+        if total != data.amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Payment amounts must total ₹{data.amount:,.2f}",
+            )
+        return normalized
+
+    @staticmethod
+    def primary_payer(payments: list[tuple[int, Decimal]], fallback: int) -> int:
+        """Largest contributor becomes the stored payer_id for legacy fields."""
+        if not payments:
+            return fallback
+        return max(payments, key=lambda pair: pair[1])[0]
 
     @staticmethod
     def _allocate(amount: Decimal, weights: list[Decimal]) -> list[Decimal]:
@@ -161,24 +201,28 @@ class ExpenseService(BaseService[Expense]):
         group = self.groups.get_group_for_user(group_id, actor)
         member_ids = self._member_ids(group)
         computed = self.compute_splits(data, member_ids)
+        payments = self.resolve_payments(data, member_ids)
 
         expense = self._build(group, data, computed)
+        expense.payer_id = self.primary_payer(payments, data.paid_by)
         for user_id, amount in computed:
             expense.splits.append(ExpenseSplit(user_id=user_id, amount=amount))
+        for user_id, amount in payments:
+            expense.payments.append(ExpensePayment(user_id=user_id, amount=amount))
 
         self.db.add(expense)
-        self.db.commit()
-        self.db.refresh(expense)
-
         self.db.add(
             Transaction(
                 group_id=group.id,
-                user_id=data.paid_by,
+                user_id=expense.payer_id,
                 type="expense",
                 amount=data.amount,
                 description=f"Expense: {data.title}",
             )
         )
+        self.db.commit()
+        self.db.refresh(expense)
+
         self.activities.record(
             actor.id,
             ActivityType.EXPENSE_ADDED,
@@ -256,8 +300,9 @@ class ExpenseService(BaseService[Expense]):
         expense = self.get_group_expense(group_id, expense_id, actor)
         member_ids = self._member_ids(group)
         computed = self.compute_splits(data, member_ids)
+        payments = self.resolve_payments(data, member_ids)
 
-        expense.payer_id = data.paid_by
+        expense.payer_id = self.primary_payer(payments, data.paid_by)
         expense.title = data.title
         expense.description = data.description
         expense.amount = data.amount
@@ -269,8 +314,13 @@ class ExpenseService(BaseService[Expense]):
         expense.paid_at = data.expense_date
 
         self.db.query(ExpenseSplit).filter(ExpenseSplit.expense_id == expense.id).delete()
+        self.db.query(ExpensePayment).filter(
+            ExpensePayment.expense_id == expense.id
+        ).delete()
         for user_id, amount in computed:
             expense.splits.append(ExpenseSplit(user_id=user_id, amount=amount))
+        for user_id, amount in payments:
+            self.db.add(ExpensePayment(expense_id=expense.id, user_id=user_id, amount=amount))
 
         self.activities.record(
             actor.id,
@@ -294,6 +344,9 @@ class ExpenseService(BaseService[Expense]):
             related_id=expense.id,
         )
         self.db.query(ExpenseSplit).filter(ExpenseSplit.expense_id == expense.id).delete()
+        self.db.query(ExpensePayment).filter(
+            ExpensePayment.expense_id == expense.id
+        ).delete()
         self.db.delete(expense)
         self.db.commit()
 

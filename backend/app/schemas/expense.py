@@ -17,6 +17,11 @@ class PercentageSplitItem(BaseModel):
     percentage: Decimal = Field(gt=0, max_digits=5, decimal_places=2)
 
 
+class PaymentInput(BaseModel):
+    user_id: int
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+
+
 class ExpenseBase(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=255)
@@ -28,6 +33,7 @@ class ExpenseBase(BaseModel):
     participants: list[int] | None = None
     exact_amounts: list[ExactSplitItem] | None = None
     percentages: list[PercentageSplitItem] | None = None
+    payments: list[PaymentInput] | None = None
 
 
 class ExpenseCreate(ExpenseBase):
@@ -65,6 +71,16 @@ class ExpenseSplitRead(BaseModel):
     user: UserBrief | None = None
 
 
+class ExpensePaymentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    expense_id: int
+    user_id: int
+    amount: Decimal
+    user: UserBrief | None = None
+
+
 class ExpenseRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -82,3 +98,4 @@ class ExpenseRead(BaseModel):
     created_at: datetime
     paid_by_user: UserBrief | None = Field(default=None, validation_alias="payer")
     splits: list[ExpenseSplitRead] = []
+    payments: list[ExpensePaymentRead] = []

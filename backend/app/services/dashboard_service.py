@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.expense import Expense
+from app.models.expense_payment import ExpensePayment
 from app.models.expense_split import ExpenseSplit
 from app.models.group import Group
 from app.models.group_member import GroupMember
@@ -70,9 +71,9 @@ class DashboardService:
             group_ids,
         )
         paid_totals = self._sum_by_group(
-            self.db.query(Expense.group_id, func.sum(Expense.amount)).filter(
-                Expense.payer_id == user.id
-            ),
+            self.db.query(Expense.group_id, func.sum(ExpensePayment.amount))
+            .join(Expense, Expense.id == ExpensePayment.expense_id)
+            .filter(ExpensePayment.user_id == user.id),
             Expense.group_id,
             group_ids,
         )

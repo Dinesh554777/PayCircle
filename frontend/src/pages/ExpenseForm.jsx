@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Receipt, ScanLine } from "lucide-react";
+import { ArrowLeft, Receipt, ScanLine, Wallet } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Select from "../components/common/Select";
@@ -12,6 +12,7 @@ import Avatar from "../components/common/Avatar";
 import ReceiptModal from "../components/ReceiptModal";
 import { apiRequest } from "../api/client";
 import { CURRENCY_SYMBOL } from "../utils/format";
+import { useAuth } from "../context/AuthContext";
 
 const METHODS = [
   { value: "equal", label: "Equal" },
@@ -23,6 +24,7 @@ export default function ExpenseForm() {
   const { id, expenseId } = useParams();
   const isEdit = Boolean(expenseId);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,12 +35,13 @@ export default function ExpenseForm() {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [aiCategory, setAiCategory] = useState("");
-  const [paidBy, setPaidBy] = useState("");
   const [expenseDate, setExpenseDate] = useState("");
   const [splitMethod, setSplitMethod] = useState("equal");
   const [selected, setSelected] = useState([]);
   const [exactAmounts, setExactAmounts] = useState({});
   const [percentages, setPercentages] = useState({});
+  const [payerSelected, setPayerSelected] = useState([]);
+  const [payerAmounts, setPayerAmounts] = useState({});
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -64,7 +67,6 @@ export default function ExpenseForm() {
           setAmount(String(expense.amount));
           setCategory(expense.category || "");
           setAiCategory(expense.ai_category || "");
-          setPaidBy(String(expense.paid_by));
           setExpenseDate(expense.expense_date ? expense.expense_date.slice(0, 10) : "");
           setSplitMethod(expense.split_method || "equal");
 
@@ -88,8 +90,23 @@ export default function ExpenseForm() {
           } else {
             setSelected(expense.splits.map((s) => s.user_id));
           }
+
+          if (expense.payments?.length) {
+            setPayerSelected(expense.payments.map((p) => String(p.user_id)));
+            const amounts = {};
+            expense.payments.forEach((p) => {
+              amounts[String(p.user_id)] = String(p.amount);
+            });
+            setPayerAmounts(amounts);
+          } else {
+            setPayerSelected([String(expense.paid_by)]);
+            setPayerAmounts({ [String(expense.paid_by)]: String(expense.amount) });
+          }
         } else {
           setSelected(memberOptions.map((m) => m.value));
+          if (user?.id && memberOptions.some((m) => m.value === String(user.id))) {
+            setPayerSelected([String(user.id)]);
+          }
         }
       })
       .catch((err) => {
@@ -97,7 +114,7 @@ export default function ExpenseForm() {
         setError(err.message);
       })
       .finally(() => setLoading(false));
-  }, [id, expenseId, isEdit]);
+  }, [id, expenseId, isEdit, user?.id]);
 
   const amountNum = Number(amount) || 0;
   const equalShare = selected.length > 0
@@ -119,21 +136,57 @@ export default function ExpenseForm() {
       ? Math.abs(splitTotal - 100) < 0.001
       : Math.abs(splitTotal - amountNum) < 0.001;
 
+  const totalPaid = useMemo(
+    () =>
+      payerSelected.reduce(
+        (sum, userId) => sum + (Number(payerAmounts[userId]) || 0),
+        0
+      ),
+    [payerSelected, payerAmounts]
+  );
+  const remaining = amountNum - totalPaid;
+  const paidValid = Math.abs(totalPaid - amountNum) < 0.005;
+
   function toggleMember(memberId) {
     setSelected((prev) =>
       prev.includes(memberId) ? prev.filter((m) => m !== memberId) : [...prev, memberId]
     );
   }
 
+  function togglePayer(memberId) {
+    setPayerSelected((prev) => {
+      if (prev.includes(memberId)) {
+        setPayerAmounts((amounts) => {
+          const next = { ...amounts };
+          delete next[memberId];
+          return next;
+        });
+        return prev.filter((m) => m !== memberId);
+      }
+      return [...prev, memberId];
+    });
+  }
+
   function buildPayload() {
+    const payments = payerSelected
+      .map((userId) => ({
+        user_id: Number(userId),
+        amount: String(Number(payerAmounts[userId]) || 0),
+      }))
+      .filter((p) => p.amount > 0);
+    const primaryPayer = payments.reduce(
+      (top, p) => (p.amount > top.amount ? p : top),
+      payments[0] || { user_id: Number(members[0]?.value || 0), amount: 0 }
+    );
     const base = {
       title,
       description: description || null,
       amount: String(amountNum),
       category: category || null,
-      paid_by: Number(paidBy),
+      paid_by: primaryPayer.user_id,
       expense_date: expenseDate ? new Date(expenseDate).toISOString() : null,
       split_method: splitMethod,
+      payments,
     };
     if (splitMethod === "equal") {
       return { ...base, participants: selected.map(Number) };
@@ -168,8 +221,26 @@ export default function ExpenseForm() {
       setError("Amount must be greater than 0");
       return;
     }
-    if (!paidBy) {
-      setError("Select who paid");
+    if (payerSelected.length === 0) {
+      setError("Select at least one person who paid");
+      return;
+    }
+    const zeroPayer = payerSelected.find(
+      (userId) => !(Number(payerAmounts[userId]) > 0)
+    );
+    if (zeroPayer) {
+      const member = members.find((m) => m.value === zeroPayer);
+      setError(`Enter a payment amount greater than 0 for ${member?.label || "the selected payer"}`);
+      return;
+    }
+    if (!paidValid) {
+      setError(
+        `⚠ Payment amounts must total ${CURRENCY_SYMBOL}${amountNum.toFixed(2)}.`
+      );
+      return;
+    }
+    if (splitMethod === "equal" && selected.length === 0) {
+      setError("Select at least one participant");
       return;
     }
     if (!totalValid) {
@@ -293,14 +364,71 @@ export default function ExpenseForm() {
           ) : (
             <p className="text-muted text-sm">Leave category empty to auto-categorize with AI.</p>
           )}
-          <Select
-            label="Paid by"
-            name="paidBy"
-            required
-            value={paidBy}
-            onChange={(e) => setPaidBy(e.target.value)}
-            options={members}
-          />
+        </Card>
+
+        <Card title="Paid by" className="mb-4">
+          <p className="text-sm text-secondary mb-3">
+            Select one or more payers and enter how much each person paid. Payments
+            must add up to the expense amount.
+          </p>
+          <div className="member-list">
+            {members.map((member) => {
+              const isPayer = payerSelected.includes(member.value);
+              return (
+                <div key={member.value} className="member-row">
+                  <label className="selectable-row" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                    <input
+                      type="checkbox"
+                      className="checkbox"
+                      checked={isPayer}
+                      onChange={() => togglePayer(member.value)}
+                    />
+                    <Avatar name={member.label} size="sm" />
+                    <span style={{ flex: 1 }}>{member.label}</span>
+                  </label>
+                  {isPayer && (
+                    <div className="input-wrap" style={{ width: 120 }}>
+                      <input
+                        type="number"
+                        className="input"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        aria-label={`${member.label} paid amount`}
+                        value={payerAmounts[member.value] || ""}
+                        onChange={(e) =>
+                          setPayerAmounts((prev) => ({
+                            ...prev,
+                            [member.value]: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div
+            className={`split-total${paidValid ? " split-total-ok" : " split-total-bad"}`}
+          >
+            <span>
+              <Wallet aria-hidden="true" style={{ verticalAlign: "-2px", marginRight: 4 }} />
+              Total paid:
+            </span>
+            <strong>
+              {totalPaid.toFixed(2)} / {amountNum.toFixed(2)}
+              {paidValid ? " ✓" : ""}
+            </strong>
+          </div>
+          {!paidValid && (
+            <p className="form-error mb-0">
+              ⚠ Payment amounts must total {CURRENCY_SYMBOL}{amountNum.toFixed(2)}
+              {remaining > 0
+                ? ` — ${CURRENCY_SYMBOL}${remaining.toFixed(2)} remaining.`
+                : ` — ${CURRENCY_SYMBOL}${Math.abs(remaining).toFixed(2)} too much.`}
+            </p>
+          )}
         </Card>
 
         <Card title="Split" className="mb-4">

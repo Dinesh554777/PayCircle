@@ -1,5 +1,6 @@
 from app.models.activity import Activity
 from app.models.expense import Expense
+from app.models.expense_payment import ExpensePayment
 from app.models.expense_split import ExpenseSplit
 from app.models.group import Group
 from app.models.group_member import GroupMember
@@ -12,6 +13,7 @@ from app.models.user import User
 __all__ = [
     "Activity",
     "Expense",
+    "ExpensePayment",
     "ExpenseSplit",
     "Group",
     "GroupMember",

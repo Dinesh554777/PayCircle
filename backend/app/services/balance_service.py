@@ -34,8 +34,27 @@ class BalanceService:
         settled_paid = defaultdict(lambda: Decimal("0.00"))
         settled_received = defaultdict(lambda: Decimal("0.00"))
 
-        for expense in self.db.query(Expense).filter(Expense.group_id == group.id):
-            paid[expense.payer_id] += expense.amount
+        expenses = self.db.query(Expense).filter(Expense.group_id == group.id).all()
+        expense_ids = [expense.id for expense in expenses]
+        payments_by_expense: dict[int, list] = {}
+        if expense_ids:
+            from app.models.expense_payment import ExpensePayment
+
+            rows = (
+                self.db.query(ExpensePayment)
+                .filter(ExpensePayment.expense_id.in_(expense_ids))
+                .all()
+            )
+            for row in rows:
+                payments_by_expense.setdefault(row.expense_id, []).append(row)
+
+        for expense in expenses:
+            records = payments_by_expense.get(expense.id)
+            if records:
+                for record in records:
+                    paid[record.user_id] += record.amount
+            else:
+                paid[expense.payer_id] += expense.amount
 
         for split in (
             self.db.query(ExpenseSplit)
