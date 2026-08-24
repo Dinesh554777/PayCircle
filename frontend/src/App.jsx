@@ -15,6 +15,7 @@ import Chat from "./pages/Chat";
 import Insights from "./pages/Insights";
 import AdminPage from "./pages/AdminPage";
 import Notifications from "./pages/Notifications";
+import AuthCallback from "./pages/AuthCallback";
 import Layout from "./components/Layout";
 
 function ProtectedRoute({ children }) {
@@ -53,6 +54,7 @@ function AppRoutes() {
           </PublicOnly>
         }
       />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route
         element={
           <ProtectedRoute>

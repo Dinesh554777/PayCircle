@@ -6,6 +6,8 @@ import Button from "../components/common/Button";
 import AuthShell from "../components/auth/AuthShell";
 import { useAuth } from "../context/AuthContext";
 
+import GoogleAuthButton from "../components/auth/GoogleAuthButton";
+
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -29,6 +31,14 @@ export default function Login() {
 
   return (
     <AuthShell title="Welcome back" subtitle="Log in to manage your shared expenses.">
+      <div className="flex flex-column gap-3 mb-4">
+        <GoogleAuthButton />
+      </div>
+      
+      <div className="auth-divider">
+        <span>or continue with email</span>
+      </div>
+
       <form onSubmit={handleSubmit} className="flex flex-column gap-3">
         <Input
           label="Email"

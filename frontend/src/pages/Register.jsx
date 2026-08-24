@@ -6,6 +6,8 @@ import Button from "../components/common/Button";
 import AuthShell from "../components/auth/AuthShell";
 import { useAuth } from "../context/AuthContext";
 
+import GoogleAuthButton from "../components/auth/GoogleAuthButton";
+
 export default function Register() {
   const navigate = useNavigate();
   const { register } = useAuth();
@@ -35,6 +37,14 @@ export default function Register() {
 
   return (
     <AuthShell title="Create your account" subtitle="Start splitting expenses in seconds.">
+      <div className="flex flex-column gap-3 mb-4">
+        <GoogleAuthButton />
+      </div>
+
+      <div className="auth-divider">
+        <span>or continue with email</span>
+      </div>
+
       <form onSubmit={handleSubmit} className="flex flex-column gap-3">
         <Input
           label="Full Name"

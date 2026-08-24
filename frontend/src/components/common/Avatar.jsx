@@ -30,7 +30,19 @@ function colorFor(name) {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
-export default function Avatar({ name, size = "md", className = "" }) {
+export default function Avatar({ name, avatar_url, size = "md", className = "" }) {
+  if (avatar_url) {
+    return (
+      <img
+        src={avatar_url}
+        alt={name || "user"}
+        title={name}
+        className={`avatar avatar-${size} ${className}`}
+        style={{ objectFit: "cover" }}
+      />
+    );
+  }
+
   return (
     <span
       className={`avatar avatar-${size} ${className}`}

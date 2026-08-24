@@ -44,12 +44,15 @@ export default function Profile() {
       <div className="grid-2" style={{ alignItems: "start" }}>
         <Card>
           <div className="flex flex-column items-center gap-3 text-center" style={{ padding: "var(--space-4) 0" }}>
-            <Avatar name={user?.name} size="xl" />
+            <Avatar name={user?.name} avatar_url={user?.avatar_url} size="xl" />
             <div>
               <div className="text-lg text-bold">{user?.name}</div>
               <div className="text-secondary text-sm">{user?.email}</div>
             </div>
-            {user?.is_admin && <Badge variant="primary">Administrator</Badge>}
+            <div className="flex gap-2 justify-center">
+              {user?.is_admin && <Badge variant="primary">Administrator</Badge>}
+              {user?.google_id && <Badge variant="success">Google Connected</Badge>}
+            </div>
           </div>
         </Card>
 

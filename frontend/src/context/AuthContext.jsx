@@ -60,6 +60,15 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  async function loginWithGoogle(payload) {
+    const data = await apiRequest("/auth/google", {
+      method: "POST",
+      body: payload,
+    });
+    storeSession(data.access_token, data.user);
+    return data.user;
+  }
+
   const value = useMemo(
     () => ({
       user,
@@ -67,6 +76,7 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(token),
       login,
       register,
+      loginWithGoogle,
       updateProfile,
       logout,
     }),

@@ -19,6 +19,15 @@ class UserRead(UserBase):
     is_admin: bool
     is_active: bool
     created_at: datetime
+    google_id: str | None = None
+    avatar_url: str | None = None
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str | None = None
+    code: str | None = None
+    redirect_uri: str | None = None
+    access_token: str | None = None
 
 
 class UserLogin(BaseModel):
