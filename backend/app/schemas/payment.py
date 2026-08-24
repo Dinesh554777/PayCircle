@@ -41,7 +41,6 @@ class PaymentRead(BaseModel):
     gateway: str
     razorpay_order_id: str
     razorpay_payment_id: str | None = None
-    razorpay_signature: str | None = None
     payment_status: str
     paid_at: datetime | None = None
     created_at: datetime

@@ -24,6 +24,9 @@ class SettlementRead(BaseModel):
     amount: Decimal
     status: str
     settlement_date: datetime = Field(validation_alias="settled_at")
+    completed_at: datetime | None = None
+    payment_status: str | None = None
+    payment_transaction_id: str | None = None
     created_at: datetime
     payer: UserBrief | None = None
     receiver: UserBrief | None = None

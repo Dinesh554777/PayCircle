@@ -22,9 +22,11 @@ function loadRazorpay() {
 
 export default function PaymentButton({ settlement, onSuccess, onFailure, size = "sm" }) {
   const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState("");
 
   async function handlePay() {
     setLoading(true);
+    setPhase("Creating payment...");
     try {
       const ready = await loadRazorpay();
       if (!ready) throw new Error("Razorpay Checkout could not be loaded");
@@ -36,6 +38,7 @@ export default function PaymentButton({ settlement, onSuccess, onFailure, size =
       });
 
       await new Promise((resolve, reject) => {
+        setPhase("Opening checkout...");
         const checkout = new window.Razorpay({
           key: order.razorpay_key_id,
           amount: order.amount_paise,
@@ -76,6 +79,7 @@ export default function PaymentButton({ settlement, onSuccess, onFailure, size =
       onFailure?.(err);
     } finally {
       setLoading(false);
+      setPhase("");
     }
   }
 
@@ -88,7 +92,7 @@ export default function PaymentButton({ settlement, onSuccess, onFailure, size =
       disabled={settlement.status === "completed"}
       onClick={handlePay}
     >
-      Pay {formatMoney(settlement.amount)}
+      {phase || `Pay ${formatMoney(settlement.amount)}`}
     </Button>
   );
 }

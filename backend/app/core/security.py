@@ -30,7 +30,7 @@ def create_access_token(subject: int, expires_delta: timedelta | None = None) ->
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     payload = {"sub": str(subject), "exp": expire}
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(payload, settings.auth_secret, algorithm=settings.JWT_ALGORITHM)
 
 
 def get_current_user(
@@ -49,7 +49,7 @@ def get_current_user(
     try:
         payload = jwt.decode(
             credentials.credentials,
-            settings.SECRET_KEY,
+            settings.auth_secret,
             algorithms=[settings.JWT_ALGORITHM],
         )
         user_id = int(payload.get("sub"))

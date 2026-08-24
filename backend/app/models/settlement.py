@@ -37,3 +37,15 @@ class Settlement(TimestampMixin, Base):
         foreign_keys=[receiver_id], back_populates="settlements_received"
     )
     payment: Mapped[Payment | None] = relationship(back_populates="settlement", uselist=False)
+
+    @property
+    def completed_at(self) -> datetime | None:
+        return self.settled_at if self.status == "completed" else None
+
+    @property
+    def payment_status(self) -> str | None:
+        return self.payment.payment_status if self.payment else None
+
+    @property
+    def payment_transaction_id(self) -> str | None:
+        return self.payment.razorpay_payment_id if self.payment else None

@@ -15,6 +15,7 @@ import ErrorState from "../components/common/ErrorState";
 import Skeleton from "../components/common/Skeleton";
 import { useToast } from "../components/common/Toast";
 import { apiRequest } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 import { formatDate, formatMoney } from "../utils/format";
 
 export default function GroupBalances() {
@@ -26,6 +27,7 @@ export default function GroupBalances() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const toast = useToast();
+  const { user } = useAuth();
 
   const [showSettle, setShowSettle] = useState(false);
   const [payerId, setPayerId] = useState("");
@@ -112,6 +114,26 @@ export default function GroupBalances() {
     if (status === "failed") return "danger";
     if (status === "processing") return "primary";
     return "warning";
+  }
+
+  function settlementCopy(settlement) {
+    const isPayer = settlement.payer_id === user?.id;
+    const isReceiver = settlement.receiver_id === user?.id;
+    const otherName = isPayer
+      ? settlement.receiver?.name
+      : isReceiver
+        ? settlement.payer?.name
+        : settlement.receiver?.name;
+
+    if (settlement.status === "completed") {
+      if (isPayer) return `${formatMoney(settlement.amount)} paid to ${otherName}`;
+      if (isReceiver) return `${formatMoney(settlement.amount)} received from ${otherName}`;
+      return `${settlement.payer?.name} paid ${formatMoney(settlement.amount)} to ${settlement.receiver?.name}`;
+    }
+
+    if (isPayer) return `You owe ${otherName}`;
+    if (isReceiver) return `${otherName} owes you`;
+    return `${settlement.payer?.name} owes ${settlement.receiver?.name}`;
   }
 
   async function handleSmartSettle() {
@@ -313,13 +335,16 @@ export default function GroupBalances() {
                   <li key={settlement.id} className="member-row">
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div>
-                        <span className="text-semibold">{settlement.payer?.name}</span>{" "}
-                        <span className="text-secondary">paid</span>{" "}
-                        <span className="text-semibold">{settlement.receiver?.name}</span>{" "}
-                        <span className="text-secondary">{formatMoney(settlement.amount)}</span>
+                        <span className="text-semibold">{settlementCopy(settlement)}</span>
+                        {settlement.status !== "completed" && (
+                          <div className="text-secondary mt-1">{formatMoney(settlement.amount)}</div>
+                        )}
                       </div>
                       <div className="text-muted text-sm mt-1">
                         {formatDate(settlement.settlement_date)}
+                        {settlement.payment_transaction_id && (
+                          <> · Transaction ID: {settlement.payment_transaction_id}</>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

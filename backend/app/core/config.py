@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "postgresql://paycircle:paycircle@localhost:5432/paycircle"
     SECRET_KEY: str = "change-me-in-production"
+    JWT_SECRET: str = ""
     AI_API_KEY: str = ""
     AI_MODEL: str = "llama-3.3-70b-versatile"
 
@@ -35,6 +36,10 @@ class Settings(BaseSettings):
     @property
     def effective_ai_api_key(self) -> str:
         return self.GROQ_API_KEY or self.AI_API_KEY
+
+    @property
+    def auth_secret(self) -> str:
+        return self.JWT_SECRET or self.SECRET_KEY
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

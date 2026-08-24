@@ -57,6 +57,11 @@ class PaymentService(BaseService[Payment]):
         if existing and existing.payment_status == "completed":
             raise HTTPException(status_code=400, detail="Settlement is already paid")
         if existing and existing.payment_status in {"created", "processing"}:
+            existing.payer_id = settlement.payer_id
+            existing.receiver_id = settlement.receiver_id
+            existing.amount = settlement.amount
+            self.db.commit()
+            self.db.refresh(existing)
             return existing, {
                 "id": existing.razorpay_order_id,
                 "amount": self._amount_paise(existing.amount),
@@ -76,18 +81,29 @@ class PaymentService(BaseService[Payment]):
                 },
             }
         )
-        payment = Payment(
-            settlement_id=settlement.id,
-            payer_id=settlement.payer_id,
-            receiver_id=settlement.receiver_id,
-            amount=settlement.amount,
-            currency=order.get("currency", "INR"),
-            gateway="razorpay",
-            razorpay_order_id=order["id"],
-            payment_status="created",
-        )
-        settlement.status = "processing"
-        self.db.add(payment)
+        if existing:
+            payment = existing
+            payment.razorpay_order_id = order["id"]
+            payment.razorpay_payment_id = None
+            payment.razorpay_signature = None
+            payment.amount = settlement.amount
+            payment.currency = order.get("currency", "INR")
+            payment.payment_status = "created"
+            payment.paid_at = None
+            payment.payer_id = settlement.payer_id
+            payment.receiver_id = settlement.receiver_id
+        else:
+            payment = Payment(
+                settlement_id=settlement.id,
+                payer_id=settlement.payer_id,
+                receiver_id=settlement.receiver_id,
+                amount=settlement.amount,
+                currency=order.get("currency", "INR"),
+                gateway="razorpay",
+                razorpay_order_id=order["id"],
+                payment_status="created",
+            )
+            self.db.add(payment)
         self.db.commit()
         self.db.refresh(payment)
         return payment, order
@@ -106,6 +122,15 @@ class PaymentService(BaseService[Payment]):
             raise HTTPException(status_code=404, detail="Payment order not found")
         if payment.payment_status == "completed" or settlement.status == "completed":
             raise HTTPException(status_code=400, detail="Settlement is already paid")
+        if (
+            payment.payer_id != settlement.payer_id
+            or payment.receiver_id != settlement.receiver_id
+            or payment.amount != settlement.amount
+        ):
+            payment.payment_status = "failed"
+            settlement.status = "failed"
+            self.db.commit()
+            raise HTTPException(status_code=400, detail="Payment does not match settlement")
 
         try:
             self._client().utility.verify_payment_signature(
