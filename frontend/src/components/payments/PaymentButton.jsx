@@ -67,6 +67,18 @@ export default function PaymentButton({ settlement, onSuccess, onFailure, size =
             ondismiss: () => reject(new Error("Payment cancelled")),
           },
           theme: { color: "#2563eb" },
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay via UPI",
+                  instruments: [{ method: "upi" }],
+                },
+              },
+              sequence: ["block.upi"],
+              preferences: { show_default_blocks: true },
+            },
+          },
         });
         checkout.on("payment.failed", (response) => {
           reject(new Error(response.error?.description || "Payment failed"));

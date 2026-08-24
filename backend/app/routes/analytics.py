@@ -10,7 +10,7 @@ from app.services.analytics_service import AnalyticsService
 router = APIRouter()
 
 
-@router.get("/analytics", response_model=AnalyticsOut)
+@router.get("", response_model=AnalyticsOut)
 def get_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
