@@ -21,8 +21,8 @@ class PredictionService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def get_prediction(self, user: User) -> SpendingPredictionOut:
-        months = self._monthly_totals(user)
+    def get_prediction(self, user: User, group_id: int | None = None) -> SpendingPredictionOut:
+        months = self._monthly_totals(user, group_id=group_id)
 
         based_on_months = [
             PredictionMonth(
@@ -64,10 +64,10 @@ class PredictionService:
             ),
         )
 
-    def _monthly_totals(self, user: User) -> dict[tuple[int, int], Decimal]:
+    def _monthly_totals(self, user: User, group_id: int | None = None) -> dict[tuple[int, int], Decimal]:
         """Sum the user's share of expenses per month (months with data only)."""
         totals: dict[tuple[int, int], Decimal] = defaultdict(lambda: Decimal("0.00"))
-        for row in AnalyticsService(self.db).expense_rows(user):
+        for row in AnalyticsService(self.db).expense_rows(user, group_id=group_id):
             totals[(row.date.year, row.date.month)] += row.share
         return totals
 

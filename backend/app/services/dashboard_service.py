@@ -46,7 +46,10 @@ class DashboardService:
             totals[group_id] = Decimal(amount or "0.00")
         return totals
 
-    def get_dashboard(self, user: User) -> DashboardOut:
+    def get_dashboard(self, user: User, group_id: int | None = None) -> DashboardOut:
+        if group_id is not None:
+            return self._get_group_dashboard(user, group_id)
+
         groups = (
             self.db.query(Group)
             .join(GroupMember, GroupMember.group_id == Group.id)
@@ -132,6 +135,9 @@ class DashboardService:
                         member_count=member_counts.get(group.id, 0),
                         total_expenses=total,
                         my_balance=net,
+                        amount_paid=paid,
+                        amount_owed=max(-net, Decimal("0.00")),
+                        amount_to_receive=max(net, Decimal("0.00")),
                     )
                 )
 
@@ -143,6 +149,98 @@ class DashboardService:
             group_count=len(groups),
             total_expenses=total_expenses,
             amount_paid=amount_paid,
+            amount_owed=amount_owed,
+            amount_to_receive=amount_to_receive,
+            recent_groups=recent_groups,
+            recent_transactions=recent_transactions,
+            analytics=analytics,
+            recent_activity=recent_activity,
+        )
+
+    def _get_group_dashboard(self, user: User, group_id: int) -> DashboardOut:
+        group = (
+            self.db.query(Group)
+            .join(GroupMember, GroupMember.group_id == Group.id)
+            .filter(GroupMember.group_id == group_id, GroupMember.user_id == user.id)
+            .first()
+        )
+        if group is None:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Group not found or you are not a member")
+
+        member_count = (
+            self.db.query(func.count(GroupMember.id))
+            .filter(GroupMember.group_id == group_id)
+            .scalar()
+        )
+
+        total = (
+            self.db.query(func.sum(Expense.amount))
+            .filter(Expense.group_id == group_id)
+            .scalar()
+        ) or Decimal("0.00")
+
+        paid = (
+            self.db.query(func.sum(ExpensePayment.amount))
+            .join(Expense, Expense.id == ExpensePayment.expense_id)
+            .filter(Expense.group_id == group_id, ExpensePayment.user_id == user.id)
+            .scalar()
+        ) or Decimal("0.00")
+
+        owed = (
+            self.db.query(func.sum(ExpenseSplit.amount))
+            .join(Expense, Expense.id == ExpenseSplit.expense_id)
+            .filter(Expense.group_id == group_id, ExpenseSplit.user_id == user.id)
+            .scalar()
+        ) or Decimal("0.00")
+
+        settled_paid = (
+            self.db.query(func.sum(Settlement.amount))
+            .filter(
+                Settlement.group_id == group_id,
+                Settlement.payer_id == user.id,
+                Settlement.status == "completed",
+            )
+            .scalar()
+        ) or Decimal("0.00")
+
+        settled_received = (
+            self.db.query(func.sum(Settlement.amount))
+            .filter(
+                Settlement.group_id == group_id,
+                Settlement.receiver_id == user.id,
+                Settlement.status == "completed",
+            )
+            .scalar()
+        ) or Decimal("0.00")
+
+        net = paid - owed + settled_paid - settled_received
+        amount_owed = max(-net, Decimal("0.00"))
+        amount_to_receive = max(net, Decimal("0.00"))
+
+        recent_groups = [
+            GroupSummary(
+                id=group.id,
+                name=group.name,
+                description=group.description,
+                created_at=group.created_at,
+                member_count=member_count,
+                total_expenses=total,
+                my_balance=net,
+                amount_paid=paid,
+                amount_owed=amount_owed,
+                amount_to_receive=amount_to_receive,
+            )
+        ]
+
+        recent_transactions = self._recent_transactions([group_id])
+        analytics = AnalyticsService(self.db).summary(user, group_id=group_id)
+        recent_activity = ActivityService(self.db).list_for_user(user, limit=10)
+
+        return DashboardOut(
+            group_count=1,
+            total_expenses=total,
+            amount_paid=paid,
             amount_owed=amount_owed,
             amount_to_receive=amount_to_receive,
             recent_groups=recent_groups,

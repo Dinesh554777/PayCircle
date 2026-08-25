@@ -36,7 +36,7 @@ function ListBlock({ icon: Icon, title, items }) {
   );
 }
 
-export default function AIInsights() {
+export default function AIInsights({ groupId = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -48,7 +48,10 @@ export default function AIInsights() {
     setLoading(true);
     setError("");
     try {
-      const result = await apiRequest("/ai/insights", { auth: true });
+      const params = new URLSearchParams();
+      if (groupId) params.set("group_id", String(groupId));
+      const qs = params.toString();
+      const result = await apiRequest(`/ai/insights${qs ? `?${qs}` : ""}`, { auth: true });
       setData(result);
     } catch {
       setError("We couldn't generate insights right now.");
@@ -56,7 +59,7 @@ export default function AIInsights() {
       inFlight.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [groupId]);
 
   useEffect(() => {
     load();

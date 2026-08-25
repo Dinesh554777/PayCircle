@@ -33,8 +33,8 @@ class InsightsService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def get_insights(self, user: User) -> SpendingInsightsOut:
-        rows = AnalyticsService(self.db).expense_rows(user)
+    def get_insights(self, user: User, group_id: int | None = None) -> SpendingInsightsOut:
+        rows = AnalyticsService(self.db).expense_rows(user, group_id=group_id)
 
         if not rows:
             return SpendingInsightsOut(

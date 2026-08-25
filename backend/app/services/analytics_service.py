@@ -214,8 +214,8 @@ class AnalyticsService:
             direction=direction,
         )
 
-    def summary(self, user: User) -> AnalyticsOut:
-        rows = self.expense_rows(user)
+    def summary(self, user: User, group_id: int | None = None) -> AnalyticsOut:
+        rows = self.expense_rows(user, group_id=group_id)
         if not rows:
             return AnalyticsOut(
                 has_data=False,
@@ -280,24 +280,31 @@ class AnalyticsService:
         highest = self.highest_expense(rows)
         lowest = self.lowest_expense(rows)
 
-        group_expenses = self._expenses(user)
-        group_by_id = {
-            group.id: group
-            for group in self.db.query(Group)
-            .filter(Group.id.in_(user_group_ids(self.db, user)))
-            .all()
-        }
-        group_totals = sorted(self.group_totals(user).items(), key=lambda item: item[1], reverse=True)
+        if group_id is not None:
+            group_expenses = self._expenses(user, group_id=group_id)
+            target_group = self.db.query(Group).filter(Group.id == group_id).first()
+            group_by_id = {group_id: target_group} if target_group else {}
+            all_group_totals = self.group_totals(user)
+            group_totals_list = [(group_id, all_group_totals.get(group_id, Decimal("0.00")))] if group_id in all_group_totals else []
+        else:
+            group_expenses = self._expenses(user)
+            group_by_id = {
+                group.id: group
+                for group in self.db.query(Group)
+                .filter(Group.id.in_(user_group_ids(self.db, user)))
+                .all()
+            }
+            group_totals_list = sorted(self.group_totals(user).items(), key=lambda item: item[1], reverse=True)
         group_spending = [
             GroupSpending(
-                group_id=group_id,
-                name=group_by_id.get(group_id).name if group_by_id.get(group_id) else "Group",
+                group_id=gid,
+                name=group_by_id.get(gid).name if group_by_id.get(gid) else "Group",
                 amount=amount,
                 count=sum(
-                    1 for expense in group_expenses if expense.group_id == group_id
+                    1 for expense in group_expenses if expense.group_id == gid
                 ),
             )
-            for group_id, amount in group_totals
+            for gid, amount in group_totals_list
         ]
 
         highest_schema = None

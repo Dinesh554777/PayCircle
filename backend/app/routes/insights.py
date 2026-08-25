@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -19,11 +19,12 @@ GENERIC_AI_ERROR = "Unable to generate AI insights right now. Please try again."
 
 @router.get("/insights", response_model=SpendingInsightsOut)
 def get_ai_insights(
+    group_id: int | None = Query(None, description="Filter insights to a specific group"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
-        return InsightsService(db).get_insights(current_user)
+        return InsightsService(db).get_insights(current_user, group_id=group_id)
     except HTTPException:
         raise
     except Exception:
@@ -33,7 +34,8 @@ def get_ai_insights(
 
 @router.get("/anomalies", response_model=AnomaliesOut)
 def get_spending_anomalies(
+    group_id: int | None = Query(None, description="Filter anomalies to a specific group"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return SpendingAnalyzerService(db).detect_anomalies(current_user)
+    return SpendingAnalyzerService(db).detect_anomalies(current_user, group_id=group_id)

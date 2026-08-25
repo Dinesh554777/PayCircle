@@ -150,13 +150,14 @@ class ExpenseAgent:
             for tool in self._tools.values()
         ]
 
-    def run_tool(self, name: str, user: User, **kwargs) -> dict:
+    def run_tool(self, name: str, user: User, group_id: int | None = None, **kwargs) -> dict:
         """Execute a tool. Returns a JSON-safe dict (never raw ORM objects)."""
         tool = self._tools.get(name)
         if tool is None:
             raise HTTPException(
                 status_code=404, detail=f"Unknown tool: {name}"
             )
+        kwargs["group_id"] = group_id
         return tool.handler(user, **kwargs)
 
     # ------------------------------------------------------------- tool impls
@@ -167,8 +168,9 @@ class ExpenseAgent:
         category: str | None = None,
         limit: int = DEFAULT_LIMIT,
         sort: str = "recent",
+        group_id: int | None = None,
     ) -> dict:
-        rows = self.analytics.expense_rows(user)
+        rows = self.analytics.expense_rows(user, group_id=group_id)
         if category:
             rows = [row for row in rows if row.category.lower() == category.lower()]
         if sort == "amount":
@@ -264,8 +266,8 @@ class ExpenseAgent:
         items.sort(key=lambda item: item["date"], reverse=True)
         return {"transactions": items[:limit], "count": len(items[:limit])}
 
-    def _tool_calculate_spending(self, user: User, period: str = "total") -> dict:
-        rows = self.analytics.expense_rows(user)
+    def _tool_calculate_spending(self, user: User, period: str = "total", group_id: int | None = None) -> dict:
+        rows = self.analytics.expense_rows(user, group_id=group_id)
         now = datetime.now()
         current_key = (now.year, now.month)
         prev_key = (
@@ -300,8 +302,8 @@ class ExpenseAgent:
             "count": len(filtered),
         }
 
-    def _tool_get_category_summary(self, user: User) -> dict:
-        rows = self.analytics.expense_rows(user)
+    def _tool_get_category_summary(self, user: User, group_id: int | None = None) -> dict:
+        rows = self.analytics.expense_rows(user, group_id=group_id)
         if not rows:
             return {"categories": []}
         total = sum((row.share for row in rows), Decimal("0.00"))
@@ -321,8 +323,8 @@ class ExpenseAgent:
         ]
         return {"categories": categories}
 
-    def _tool_get_monthly_summary(self, user: User) -> dict:
-        rows = self.analytics.expense_rows(user)
+    def _tool_get_monthly_summary(self, user: User, group_id: int | None = None) -> dict:
+        rows = self.analytics.expense_rows(user, group_id=group_id)
         if not rows:
             return {"months": []}
         totals: dict[tuple[int, int], Decimal] = {}
@@ -415,7 +417,7 @@ class ExpenseAgent:
             return "calculate_spending", {"period": "total"}
         return "", {}
 
-    def answer(self, question: str, user: User) -> str:
+    def answer(self, question: str, user: User, group_id: int | None = None) -> str:
         question = (question or "").strip()
         if not question:
             return _GUIDANCE
@@ -424,7 +426,7 @@ class ExpenseAgent:
         if not tool_name:
             return _GUIDANCE
 
-        result = self.run_tool(tool_name, user, **args)
+        result = self.run_tool(tool_name, user, group_id=group_id, **args)
         return self._generate_response(tool_name, result)
 
     # ------------------------------------------------------------ response gen

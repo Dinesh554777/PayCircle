@@ -16,6 +16,9 @@ class GroupSummary(BaseModel):
     member_count: int
     total_expenses: Decimal
     my_balance: Decimal
+    amount_paid: Decimal = Decimal("0.00")
+    amount_owed: Decimal = Decimal("0.00")
+    amount_to_receive: Decimal = Decimal("0.00")
 
 
 class DashboardOut(BaseModel):

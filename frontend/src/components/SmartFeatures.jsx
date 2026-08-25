@@ -38,7 +38,7 @@ function healthColor(score) {
   return "var(--danger)";
 }
 
-export default function SmartFeatures({ groupId }) {
+export default function SmartFeatures({ groupId, groupFilterId = null }) {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -51,10 +51,13 @@ export default function SmartFeatures({ groupId }) {
     }
     let active = true;
     setLoading(true);
+    const anomalyParams = new URLSearchParams();
+    if (groupFilterId) anomalyParams.set("group_id", String(groupFilterId));
+    const anomalyQs = anomalyParams.toString();
     Promise.all([
       apiRequest(`/groups/${groupId}/settlement-suggestions`, { auth: true }),
       apiRequest(`/groups/${groupId}/health`, { auth: true }),
-      apiRequest("/ai/anomalies", { auth: true }),
+      apiRequest(`/ai/anomalies${anomalyQs ? `?${anomalyQs}` : ""}`, { auth: true }),
     ])
       .then(([suggestions, health, anomalies]) => {
         if (active) setData({ suggestions, health, anomalies });
@@ -68,7 +71,7 @@ export default function SmartFeatures({ groupId }) {
     return () => {
       active = false;
     };
-  }, [groupId]);
+  }, [groupId, groupFilterId]);
 
   if (loading) {
     return (

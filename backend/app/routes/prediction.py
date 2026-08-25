@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -12,7 +12,8 @@ router = APIRouter()
 
 @router.get("/prediction", response_model=SpendingPredictionOut)
 def get_spending_prediction(
+    group_id: int | None = Query(None, description="Filter prediction to a specific group"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return PredictionService(db).get_prediction(current_user)
+    return PredictionService(db).get_prediction(current_user, group_id=group_id)

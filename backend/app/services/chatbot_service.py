@@ -28,20 +28,20 @@ class ChatbotService:
         self.db = db
         self.chatbot = chatbot or Chatbot()
 
-    def answer(self, message: str, user: User) -> str:
+    def answer(self, message: str, user: User, group_id: int | None = None) -> str:
         question = (message or "").strip()
         if not question:
             raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-        context = self._build_context(user)
+        context = self._build_context(user, group_id=group_id)
         if not context.get("has_data"):
             return NO_DATA_MESSAGE
         if not self._is_expense_related(question):
             return UNRELATED_MESSAGE
         return self.chatbot.answer(question, context)
 
-    def _build_context(self, user: User) -> dict:
-        insights = InsightsService(self.db).get_insights(user)
+    def _build_context(self, user: User, group_id: int | None = None) -> dict:
+        insights = InsightsService(self.db).get_insights(user, group_id=group_id)
         if insights.expense_count == 0:
             return {"has_data": False}
 
@@ -58,7 +58,7 @@ class ChatbotService:
                 }
                 break
 
-        prediction = PredictionService(self.db).get_prediction(user)
+        prediction = PredictionService(self.db).get_prediction(user, group_id=group_id)
         prediction_ctx = None
         if prediction.has_prediction and prediction.predicted_amount is not None:
             prediction_ctx = {
@@ -66,7 +66,7 @@ class ChatbotService:
                 "period": prediction.period_label,
             }
 
-        owes, owed_to = self._collect_balances(user)
+        owes, owed_to = self._collect_balances(user, group_id=group_id)
 
         return {
             "has_data": True,
@@ -96,7 +96,7 @@ class ChatbotService:
                 for item in insights.monthly_summary
             ],
             "current_month": current_month,
-            "recent_expenses": self._recent_expenses(user),
+            "recent_expenses": self._recent_expenses(user, group_id=group_id),
             "balances": {"you_owe": owes, "you_are_owed": owed_to},
             "suggestions": insights.suggestions,
             "prediction": prediction_ctx,
@@ -113,9 +113,9 @@ class ChatbotService:
             )
         ]
 
-    def _recent_expenses(self, user: User, limit: int = RECENT_EXPENSES_LIMIT) -> list[dict]:
+    def _recent_expenses(self, user: User, limit: int = RECENT_EXPENSES_LIMIT, group_id: int | None = None) -> list[dict]:
         rows = sorted(
-            AnalyticsService(self.db).expense_rows(user),
+            AnalyticsService(self.db).expense_rows(user, group_id=group_id),
             key=lambda row: row.date,
             reverse=True,
         )
@@ -136,15 +136,27 @@ class ChatbotService:
                 break
         return items
 
-    def _collect_balances(self, user: User) -> tuple[list[dict], list[dict]]:
+    def _collect_balances(self, user: User, group_id: int | None = None) -> tuple[list[dict], list[dict]]:
         owes: list[dict] = []
         owed_to: list[dict] = []
-        for group in (
-            self.db.query(Group)
-            .join(GroupMember, GroupMember.group_id == Group.id)
-            .filter(GroupMember.user_id == user.id)
-            .all()
-        ):
+
+        if group_id is not None:
+            group = (
+                self.db.query(Group)
+                .join(GroupMember, GroupMember.group_id == Group.id)
+                .filter(GroupMember.group_id == group_id, GroupMember.user_id == user.id)
+                .first()
+            )
+            groups_to_check = [group] if group else []
+        else:
+            groups_to_check = (
+                self.db.query(Group)
+                .join(GroupMember, GroupMember.group_id == Group.id)
+                .filter(GroupMember.user_id == user.id)
+                .all()
+            )
+
+        for group in groups_to_check:
             balances = BalanceService(self.db).get_balances(group.id, user)
             for transfer in balances.who_owes_whom:
                 if transfer.from_user_id == user.id and transfer.to_user is not None:

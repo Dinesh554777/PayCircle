@@ -17,7 +17,7 @@ def chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return ChatOut(answer=ChatbotService(db).answer(data.message, current_user))
+    return ChatOut(answer=ChatbotService(db).answer(data.message, current_user, group_id=data.group_id))
 
 
 @router.post("/agent", response_model=ChatOut)
@@ -26,4 +26,4 @@ def agent_chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return ChatOut(answer=ExpenseAgent(db).answer(data.message, current_user))
+    return ChatOut(answer=ExpenseAgent(db).answer(data.message, current_user, group_id=data.group_id))

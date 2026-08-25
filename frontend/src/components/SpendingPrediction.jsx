@@ -7,16 +7,19 @@ import Badge from "./common/Badge";
 import { apiRequest } from "../api/client";
 import { formatMoney } from "../utils/format";
 
-export default function SpendingPrediction() {
+export default function SpendingPrediction({ groupId = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiRequest("/ai/prediction", { auth: true })
+    const params = new URLSearchParams();
+    if (groupId) params.set("group_id", String(groupId));
+    const qs = params.toString();
+    apiRequest(`/ai/prediction${qs ? `?${qs}` : ""}`, { auth: true })
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [groupId]);
 
   if (loading) {
     return (
