@@ -1,45 +1,46 @@
-import { useState } from "react";
-import { ScanLine, ImageIcon, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  ScanLine,
+  ImageIcon,
+  Sparkles,
+  Loader2,
+  CheckCircle2,
+  RefreshCw,
+} from "lucide-react";
 import Modal from "./common/Modal";
 import Button from "./common/Button";
 import Input from "./common/Input";
-import Select from "./common/Select";
 import Badge from "./common/Badge";
 import { apiRequest } from "../api/client";
 import { formatMoney } from "../utils/format";
 
-const CATEGORIES = [
-  "Food",
-  "Transport",
-  "Entertainment",
-  "Shopping",
-  "Utilities",
-  "Healthcare",
-  "Education",
-  "Travel",
-  "Rent",
-  "Other",
-];
+const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const MAX_SIZE_BYTES = 8 * 1024 * 1024;
+const RECEIPT_PLACEHOLDER =
+  "Receipt information will appear here automatically after scanning...";
 
 export default function ReceiptModal({ open, onClose, onUseReceipt }) {
   const [receiptText, setReceiptText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [result, setResult] = useState(null);
-  const [extracting, setExtracting] = useState(false);
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [scanError, setScanError] = useState("");
   const [error, setError] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editAmount, setEditAmount] = useState("");
-  const [editCategory, setEditCategory] = useState("");
-  const [editDate, setEditDate] = useState("");
+  const [result, setResult] = useState(null);
+  const [manualMode, setManualMode] = useState(false);
+  const objectUrlRef = useRef("");
 
   function reset() {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = "";
     setReceiptText("");
     setImageUrl("");
-    setResult(null);
-    setExtracting(false);
+    setFile(null);
+    setStatus("idle");
+    setScanError("");
     setError("");
-    setEditing(false);
+    setResult(null);
+    setManualMode(false);
   }
 
   function handleClose() {
@@ -47,15 +48,67 @@ export default function ReceiptModal({ open, onClose, onUseReceipt }) {
     onClose();
   }
 
+  async function analyze(selectedFile) {
+    setStatus("analyzing");
+    setScanError("");
+    setResult(null);
+    try {
+      const form = new FormData();
+      form.append("image", selectedFile);
+      const data = await apiRequest("/ai/receipt/scan", {
+        method: "POST",
+        body: form,
+        auth: true,
+      });
+      if (!data.extracted) {
+        setScanError(
+          data.error || "We couldn't read this receipt. Try uploading a clearer image."
+        );
+        setStatus("error");
+        return;
+      }
+      setResult(data);
+      setReceiptText(data.raw_text || "");
+      setStatus("success");
+    } catch (err) {
+      setScanError(err.message || "We couldn't read this receipt. Please try again.");
+      setStatus("error");
+    }
+  }
+
   function handleImage(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
-      setError("Image is too large (max 3 MB). It's only used as a reference.");
+    const selected = event.target.files?.[0];
+    event.target.value = "";
+    if (!selected) return;
+    setError("");
+    if (!ALLOWED_TYPES.includes(selected.type)) {
+      setScanError("Unsupported file. Please upload a JPG, PNG or WEBP image.");
+      setStatus("error");
       return;
     }
-    setImageUrl(URL.createObjectURL(file));
-    setError("");
+    if (selected.size > MAX_SIZE_BYTES) {
+      setScanError("Image is too large. Maximum size is 8 MB.");
+      setStatus("error");
+      return;
+    }
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const url = URL.createObjectURL(selected);
+    objectUrlRef.current = url;
+    setImageUrl(url);
+    setFile(selected);
+    setManualMode(false);
+    analyze(selected);
+  }
+
+  function retry() {
+    if (file) analyze(file);
+    else setStatus("idle");
+  }
+
+  function startManualMode() {
+    setManualMode(true);
+    setStatus("idle");
+    setScanError("");
   }
 
   async function handleExtract(event) {
@@ -65,53 +118,41 @@ export default function ReceiptModal({ open, onClose, onUseReceipt }) {
       return;
     }
     setError("");
-    setExtracting(true);
+    setStatus("analyzing");
     try {
       const data = await apiRequest("/ai/receipt/extract", {
         method: "POST",
         body: { text: receiptText },
         auth: true,
       });
-      setResult(data);
-      if (data.extracted) {
-        setEditTitle(data.merchant || "Receipt expense");
-        setEditAmount(String(data.amount ?? ""));
-        setEditCategory(data.category || "");
-        setEditDate(
-          data.date ? new Date(data.date).toISOString().slice(0, 10) : ""
-        );
+      if (!data.extracted) {
+        setError(data.error || "Could not read an amount from this text.");
+        return;
       }
+      setResult(data);
+      setReceiptText(data.raw_text || "");
+      setStatus("success");
     } catch (err) {
       setError(err.message);
     } finally {
-      setExtracting(false);
+      setStatus("idle");
     }
   }
 
   function handleUse() {
-    if (editing) {
-      if (!Number(editAmount) || Number(editAmount) <= 0) {
-        setError("Amount must be greater than 0.");
-        return;
-      }
-      onUseReceipt({
-        title: editTitle.trim() || "Receipt expense",
-        amount: editAmount,
-        category: editCategory,
-        expenseDate: editDate,
-      });
-    } else if (result?.extracted) {
-      onUseReceipt({
-        title: result.merchant || "Receipt expense",
-        amount: String(result.amount ?? ""),
-        category: result.category || "",
-        expenseDate: result.date ? new Date(result.date).toISOString().slice(0, 10) : "",
-      });
-    }
+    if (!result?.extracted) return;
+    onUseReceipt({
+      title: result.merchant || "Receipt expense",
+      amount: String(result.amount ?? result.total ?? ""),
+      category: result.category || "",
+      expenseDate: result.date ? new Date(result.date).toISOString().slice(0, 10) : "",
+    });
     handleClose();
   }
 
-  const dateInputValue = editing ? editDate : result?.date ? new Date(result.date).toISOString().slice(0, 10) : "";
+  const analyzing = status === "analyzing";
+  const extracted = status === "success" && result?.extracted;
+  const itemCount = result?.items?.length ?? 0;
 
   return (
     <Modal
@@ -122,160 +163,141 @@ export default function ReceiptModal({ open, onClose, onUseReceipt }) {
       size="lg"
       labelledBy="receipt-title"
     >
-      {!result ? (
-        <form onSubmit={handleExtract}>
-          {imageUrl && (
-            <div className="mb-3">
-              <img
-                src={imageUrl}
-                alt="Receipt preview"
-                className="receipt-preview"
-              />
-            </div>
-          )}
-          <div className="flex gap-2 items-center mb-3">
-            <label className="btn btn-secondary btn-sm">
-              <ImageIcon aria-hidden="true" /> {imageUrl ? "Change photo" : "Upload photo"}
-              <input
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                onChange={handleImage}
-              />
-            </label>
-            <span className="text-muted text-sm">
-              Photo is for reference only (stays on your device).
-            </span>
+      <div className="flex gap-2 items-center mb-3 flex-wrap">
+        <label className="btn btn-secondary btn-sm">
+          <ImageIcon aria-hidden="true" /> {imageUrl ? "Change image" : "Upload receipt image"}
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+            className="sr-only"
+            onChange={handleImage}
+            disabled={analyzing}
+          />
+        </label>
+        {!manualMode && !imageUrl && (
+          <button
+            type="button"
+            className="link"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            onClick={startManualMode}
+          >
+            Can&apos;t scan? Enter receipt details manually
+          </button>
+        )}
+      </div>
+
+      {imageUrl && (
+        <div className="mb-3">
+          <img src={imageUrl} alt="Receipt preview" className="receipt-preview" />
+        </div>
+      )}
+
+      {analyzing && (
+        <div className="flex items-center gap-2 mb-3" role="status">
+          <Loader2 className="spin" aria-hidden="true" />
+          <div>
+            <p className="text-semibold mb-0">🔍 Analyzing receipt...</p>
+            <p className="text-muted text-sm mb-0">
+              Extracting merchant, items, date and total
+            </p>
           </div>
+        </div>
+      )}
+
+      {status === "error" && scanError && (
+        <div className="mb-3">
+          <p className="form-error mb-2">{scanError}</p>
+          <div className="flex gap-2 items-center flex-wrap">
+            {file && (
+              <Button variant="secondary" onClick={retry} icon={RefreshCw}>
+                Try Again
+              </Button>
+            )}
+            <Button variant="ghost" onClick={startManualMode}>
+              Enter manually
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {extracted && (
+        <>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <CheckCircle2 aria-hidden="true" color="var(--success)" />
+            <span className="text-semibold text-success">
+              ✓ Receipt analyzed successfully
+            </span>
+            <Badge variant="success">
+              {Math.round(Number(result.confidence || 0) * 100)}% confident
+            </Badge>
+          </div>
+          <ul className="member-list mb-3">
+            <li className="member-row">
+              <span className="text-secondary" style={{ width: 90 }}>Merchant</span>
+              <span className="text-semibold">{result.merchant || "—"}</span>
+            </li>
+            <li className="member-row">
+              <span className="text-secondary" style={{ width: 90 }}>Date</span>
+              <span className="text-semibold">
+                {result.date ? new Date(result.date).toLocaleDateString() : "—"}
+              </span>
+            </li>
+            <li className="member-row">
+              <span className="text-secondary" style={{ width: 90 }}>Items</span>
+              <span className="text-semibold">
+                {itemCount} item{itemCount === 1 ? "" : "s"}
+              </span>
+            </li>
+            <li className="member-row">
+              <span className="text-secondary" style={{ width: 90 }}>Total</span>
+              <span className="text-semibold">
+                {formatMoney(result.amount ?? result.total)}
+                {result.currency ? ` · ${result.currency}` : ""}
+              </span>
+            </li>
+          </ul>
+        </>
+      )}
+
+      {(manualMode || imageUrl) && !analyzing && (
+        <form onSubmit={handleExtract}>
           <Input
-            label="Receipt text"
+            label={extracted ? "Extracted receipt text" : "Receipt text"}
             name="receiptText"
             textarea
             rows={6}
-            required
             value={receiptText}
             onChange={(e) => setReceiptText(e.target.value)}
-            placeholder={"Cafe Coffee Day\n12 Aug 2026\nCoffee 120.00\nSandwich 180.00\nTOTAL 300.00"}
+            placeholder={RECEIPT_PLACEHOLDER}
+            hint={
+              manualMode
+                ? undefined
+                : "Review the scanned text — fix anything the scanner misread."
+            }
           />
           <p className="text-muted text-sm mb-3">
-            Type or paste the store name, date, and item amounts. PayCircle will
-            extract the total, merchant, date and category for you to review.
+            PayCircle reads the store name, date, items and totals from this text.
           </p>
           {error && <p className="form-error">{error}</p>}
-          <div className="flex gap-2 items-center">
-            <Button type="submit" loading={extracting} icon={Sparkles}>
-              Extract info
+          <div className="flex gap-2 items-center flex-wrap">
+            <Button
+              type="submit"
+              loading={analyzing}
+              disabled={analyzing}
+              icon={Sparkles}
+            >
+              {extracted && !manualMode ? "Re-extract" : "Extract info"}
             </Button>
+            {extracted && (
+              <Button variant="primary" onClick={handleUse} icon={ScanLine}>
+                Use Receipt Data
+              </Button>
+            )}
             <Button variant="secondary" type="button" onClick={handleClose}>
               Cancel
             </Button>
           </div>
         </form>
-      ) : result.extracted ? (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Badge variant="success">Extracted</Badge>
-            <span className="text-muted text-sm">
-              {Math.round(Number(result.confidence || 0) * 100)}% confident · review before adding
-            </span>
-          </div>
-
-          {editing ? (
-            <div className="grid-2 gap-2">
-              <Input
-                label="Title"
-                name="editTitle"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-              />
-              <Input
-                label="Amount"
-                name="editAmount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                required
-                value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-              />
-              <Select
-                label="Category"
-                name="editCategory"
-                value={editCategory}
-                onChange={(e) => setEditCategory(e.target.value)}
-                options={CATEGORIES.map((c) => ({ value: c, label: c }))}
-                placeholder="None"
-              />
-              <Input
-                label="Date"
-                name="editDate"
-                type="date"
-                value={dateInputValue}
-                onChange={(e) => setEditDate(e.target.value)}
-              />
-            </div>
-          ) : (
-            <ul className="member-list mb-3">
-              <li className="member-row">
-                <span className="text-secondary" style={{ width: 90 }}>Merchant</span>
-                <span className="text-semibold">{result.merchant || "—"}</span>
-              </li>
-              <li className="member-row">
-                <span className="text-secondary" style={{ width: 90 }}>Amount</span>
-                <span className="text-semibold">{formatMoney(result.amount)}</span>
-              </li>
-              <li className="member-row">
-                <span className="text-secondary" style={{ width: 90 }}>Date</span>
-                <span className="text-semibold">
-                  {result.date ? new Date(result.date).toLocaleDateString() : "—"}
-                </span>
-              </li>
-              <li className="member-row">
-                <span className="text-secondary" style={{ width: 90 }}>Category</span>
-                <span className="text-semibold">{result.category || "Auto (AI)"}</span>
-              </li>
-            </ul>
-          )}
-
-          {result.notes && result.notes.length > 0 && (
-            <p className="text-muted text-sm mb-3">
-              {result.notes.join(" ")}
-            </p>
-          )}
-          {error && <p className="form-error">{error}</p>}
-
-          <div className="flex gap-2 items-center flex-wrap">
-            <Button variant="primary" onClick={handleUse} icon={ScanLine}>
-              {editing ? "Save & use expense" : "Use this expense"}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setEditing((prev) => !prev)}
-            >
-              {editing ? "View extracted" : "Edit details"}
-            </Button>
-            <Button variant="ghost" onClick={() => setResult(null)}>
-              Try another receipt
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div>
-          <p className="form-error">{result.error}</p>
-          <p className="text-secondary text-sm">
-            We couldn't read a clear amount from this receipt. Add the expense
-            manually using the form — the receipt assistant is here to help, not
-            to block you.
-          </p>
-          <div className="flex gap-2 items-center">
-            <Button variant="primary" onClick={handleClose}>
-              Enter manually
-            </Button>
-            <Button variant="ghost" onClick={() => setResult(null)}>
-              Try again
-            </Button>
-          </div>
-        </div>
       )}
     </Modal>
   );

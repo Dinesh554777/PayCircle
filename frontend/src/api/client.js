@@ -15,7 +15,15 @@ export function setToken(token) {
 }
 
 export async function apiRequest(path, { method = "GET", body, auth = false } = {}) {
-  const headers = { "Content-Type": "application/json" };
+  const headers = {};
+  let payload;
+
+  if (body instanceof FormData) {
+    payload = body;
+  } else {
+    headers["Content-Type"] = "application/json";
+    payload = body ? JSON.stringify(body) : undefined;
+  }
 
   if (auth) {
     const token = getToken();
@@ -25,7 +33,7 @@ export async function apiRequest(path, { method = "GET", body, auth = false } = 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: payload,
   });
 
   if (response.status === 401 && !path.startsWith("/auth/")) {

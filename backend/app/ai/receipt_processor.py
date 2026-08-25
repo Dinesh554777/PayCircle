@@ -1,21 +1,29 @@
 """Receipt-to-Expense assistant.
 
-Turns the text of a receipt (as pasted/typed by the user or produced by a
-phone OCR app) into a structured expense draft: merchant, amount, date and
-category. Extraction is deterministic (regex + keyword matching) so it works
-with no API keys and is fully testable.
+Two extraction paths:
+1. Text parsing (deterministic regex) - works offline, no API keys, fully
+   testable. Handles merchant, date, line items, subtotal, tax, discount,
+   grand total and currency.
+2. Vision OCR via the configured Groq vision model - sends the uploaded
+   receipt image and returns the raw text plus structured data. The
+   deterministic parser runs on the returned text as validation/fallback.
 
-Nothing is saved automatically — the UI always shows a review step and the
+Nothing is saved automatically - the UI always shows a review step and the
 user must confirm before the expense is created.
 """
 from __future__ import annotations
 
+import base64
+import json
 import re
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
 from app.ai.categorization.categorizer import CATEGORIES, KEYWORDS
+from app.core.config import get_settings
 
 NOISE_WORDS = {
     "total", "subtotal", "grand", "invoice", "receipt", "bill", "bill no",
@@ -35,16 +43,103 @@ AMOUNT_PATTERNS = [
     re.compile(r"([0-9][0-9,]*\.\d{2})"),
 ]
 TOTAL_HINTS = re.compile(r"\b(total|grand total|amount due|amount paid|net)\b", re.IGNORECASE)
+SUBTOTAL_HINTS = re.compile(r"\bsub\s*total\b|\bsubtotal\b", re.IGNORECASE)
+TAX_HINTS = re.compile(r"\b(cgst|sgst|igst|vat|tax|service charge)\b", re.IGNORECASE)
+DISCOUNT_HINTS = re.compile(r"\b(discount|off|promo|coupon)\b", re.IGNORECASE)
+GRAND_TOTAL_HINTS = re.compile(r"\bgrand total\b|\bnet amount\b|\bamount due\b|\btotal\b", re.IGNORECASE)
+CURRENCY_INR = re.compile(r"₹|\brs\.?\b|\binr\b", re.IGNORECASE)
+ITEM_LINE = re.compile(
+    r"^(?P<name>.+?)\s+(?P<qty>\d+(?:\.\d+)?)\s+(?:@\s*)?(?:₹|rs\.?)?\s*(?P<unit>[0-9][0-9,]*(?:\.\d+)?)\s+(?:₹|rs\.?)?\s*(?P<line_total>[0-9][0-9,]*(?:\.\d+)?)$",
+    re.IGNORECASE,
+)
+ITEM_LINE_SIMPLE = re.compile(
+    r"^(?P<name>.+?)\s+(?:₹|rs\.?)?\s*(?P<line_total>[0-9][0-9,]*(?:\.\d{1,2}))$"
+)
 DATE_PATTERNS = [
     re.compile(r"\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b"),
     re.compile(r"\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{4})\b", re.IGNORECASE),
     re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})\b", re.IGNORECASE),
 ]
 NUMBER_LINE = re.compile(r"\d")
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+VISION_PROMPT = """Analyze this receipt image.
+
+Extract only information that is actually visible in the receipt.
+Do not invent or guess missing values.
+
+Return valid JSON containing:
+merchant,
+date,
+currency,
+items,
+subtotal,
+tax,
+discount,
+total.
+
+For each item return:
+name,
+quantity,
+unit_price,
+total.
+
+If a value is unavailable, return null. Use this exact JSON shape:
+{"merchant": str|null, "date": "YYYY-MM-DD"|null, "currency": str|null, "items": [{"name": str, "quantity": number|null, "unit_price": number|null, "total": number|null}], "subtotal": number|null, "tax": number|null, "discount": number|null, "total": number|null, "raw_text": str}
+"""
 
 
 class ReceiptExtractionError(Exception):
     """Raised when an amount cannot be reliably read from the receipt."""
+
+
+RATE_LIMIT_MESSAGE = (
+    "Receipt scanning is busy right now. Please try again in a minute."
+)
+UNREADABLE_MESSAGE = "We couldn't read this receipt. Try uploading a clearer image."
+
+MAX_IMAGE_SIDE = 1400
+JPEG_QUALITY = 85
+
+
+def _prepare_image(image_bytes: bytes, media_type: str) -> tuple[bytes, str]:
+    """Downscale/re-encode the image so vision requests stay small.
+
+    Large phone photos consume thousands of input tokens and blow through
+    per-minute provider limits; a ~1400px JPEG is plenty for OCR.
+    """
+    try:
+        import io
+
+        from PIL import Image
+
+        image = Image.open(io.BytesIO(image_bytes))
+        width, height = image.size
+        longest = max(width, height)
+        if longest > MAX_IMAGE_SIDE:
+            scale = MAX_IMAGE_SIDE / longest
+            image = image.resize(
+                (max(1, int(width * scale)), max(1, int(height * scale))),
+                Image.LANCZOS,
+            )
+        if image.mode not in ("RGB", "L"):
+            image = image.convert("RGB")
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+        prepared = buffer.getvalue()
+        if len(prepared) < len(image_bytes) or longest > MAX_IMAGE_SIDE:
+            return prepared, "image/jpeg"
+        return image_bytes, media_type
+    except Exception:
+        return image_bytes, media_type
+
+
+@dataclass
+class ReceiptItemInfo:
+    name: str
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    total: Decimal | None = None
 
 
 @dataclass
@@ -56,6 +151,12 @@ class ReceiptInfo:
     confidence: float = 0.0
     notes: list[str] = field(default_factory=list)
     raw_text: str | None = None
+    items: list[ReceiptItemInfo] = field(default_factory=list)
+    subtotal: Decimal | None = None
+    tax: Decimal | None = None
+    discount: Decimal | None = None
+    total: Decimal | None = None
+    currency: str | None = None
 
 
 def _to_decimal(text: str) -> Decimal:
@@ -140,6 +241,107 @@ def _extract_category(text: str) -> str | None:
     return None
 
 
+def _is_noise_line(lowered: str) -> bool:
+    return bool(
+        SUBTOTAL_HINTS.search(lowered)
+        or TAX_HINTS.search(lowered)
+        or DISCOUNT_HINTS.search(lowered)
+        or GRAND_TOTAL_HINTS.search(lowered)
+        or lowered.strip() in NOISE_WORDS
+    )
+
+
+def _extract_items(lines: list[str]) -> list[ReceiptItemInfo]:
+    items: list[ReceiptItemInfo] = []
+    number_re = re.compile(r"[0-9][0-9,]*(?:\.\d+)?")
+    for line in lines:
+        lowered = line.lower()
+        if _is_noise_line(lowered):
+            continue
+        matches = list(number_re.finditer(line))
+        if not matches:
+            continue
+        name = line[: matches[0].start()].strip(" -*#.:;\t")
+        if not name or name.lower() in NOISE_WORDS:
+            continue
+        if not re.search(r"[A-Za-z]", name):
+            continue
+        try:
+            numbers = [_to_decimal(match.group(0)) for match in matches]
+        except (InvalidOperation, ValueError):
+            continue
+        if len(numbers) >= 3:
+            quantity, unit_price, line_total = numbers[0], numbers[1], numbers[2]
+        elif len(numbers) == 2:
+            quantity, line_total = numbers[0], numbers[1]
+            unit_price = (
+                (line_total / quantity).quantize(Decimal("0.01"))
+                if quantity
+                else None
+            )
+        else:
+            quantity, unit_price, line_total = None, None, numbers[0]
+        items.append(
+            ReceiptItemInfo(
+                name=name[:120],
+                quantity=quantity,
+                unit_price=unit_price,
+                total=line_total,
+            )
+        )
+    return items
+
+
+def _labeled_amount(lines: list[str], hints: re.Pattern[str]) -> Decimal | None:
+    """Last amount on the first matching label line (e.g. 'Subtotal  700.00')."""
+    for line in lines:
+        if hints.search(line):
+            amounts = AMOUNT_PATTERNS[0].findall(line) + AMOUNT_PATTERNS[2].findall(line)
+            if amounts:
+                try:
+                    return _to_decimal(amounts[-1])
+                except (InvalidOperation, ValueError):
+                    continue
+    return None
+
+
+def _extract_structured(lines: list[str], text: str, info: ReceiptInfo) -> None:
+    info.items = _extract_items(lines)
+    info.subtotal = _labeled_amount(lines, SUBTOTAL_HINTS)
+
+    tax_parts: list[Decimal] = []
+    for line in lines:
+        if TAX_HINTS.search(line) and not SUBTOTAL_HINTS.search(line):
+            amounts = AMOUNT_PATTERNS[0].findall(line) + AMOUNT_PATTERNS[2].findall(line)
+            if amounts:
+                try:
+                    tax_parts.append(_to_decimal(amounts[-1]))
+                except (InvalidOperation, ValueError):
+                    continue
+    if len(tax_parts) > 1:
+        info.tax = sum(tax_parts, Decimal("0.00"))
+    elif len(tax_parts) == 1:
+        info.tax = tax_parts[0]
+
+    info.discount = _labeled_amount(lines, DISCOUNT_HINTS)
+
+    grand = None
+    for line in reversed(lines):
+        if GRAND_TOTAL_HINTS.search(line):
+            amounts = AMOUNT_PATTERNS[0].findall(line) + AMOUNT_PATTERNS[2].findall(line)
+            if amounts:
+                try:
+                    grand = _to_decimal(amounts[-1])
+                    break
+                except (InvalidOperation, ValueError):
+                    continue
+    info.total = grand
+    if CURRENCY_INR.search(text):
+        info.currency = "INR"
+    elif TAX_HINTS.search(text) and re.search(r"\bcgst\b|\bsgst\b|\bigst\b", text, re.IGNORECASE):
+        info.currency = "INR"
+
+
 def extract_receipt(text: str) -> ReceiptInfo:
     """Extract structured info from raw receipt text.
 
@@ -159,6 +361,9 @@ def extract_receipt(text: str) -> ReceiptInfo:
     info.date = _extract_date(lines)
     info.merchant = _extract_merchant(lines)
     info.category = _extract_category(text)
+    _extract_structured(lines, text, info)
+    if info.total is None:
+        info.total = amount
 
     info.confidence = 0.5  # amount found
     if info.merchant:
@@ -168,3 +373,170 @@ def extract_receipt(text: str) -> ReceiptInfo:
     if info.category:
         info.confidence += 0.1
     return info
+
+
+def extract_receipt_from_image(image_bytes: bytes, media_type: str) -> ReceiptInfo:
+    """OCR a receipt image through the configured Groq vision model.
+
+    Returns parsed ReceiptInfo; raises ReceiptExtractionError with a safe,
+    non-technical message when the provider is not configured, unreachable,
+    or the image cannot be read.
+    """
+    settings = get_settings()
+    api_key = settings.effective_ai_api_key
+    if not api_key:
+        raise ReceiptExtractionError(
+            "Receipt scanning is not configured on this server. "
+            "Please enter the receipt details manually."
+        )
+
+    image_bytes, media_type = _prepare_image(image_bytes, media_type)
+    data_url = f"data:{media_type};base64,{base64.b64encode(image_bytes).decode('ascii')}"
+
+    def _payload(with_reasoning_flag: bool) -> dict:
+        payload = {
+            "model": settings.AI_VISION_MODEL,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": VISION_PROMPT},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+            ],
+            "temperature": 0,
+            "max_tokens": 4096,
+        }
+        if with_reasoning_flag:
+            payload["reasoning_format"] = "hidden"
+        return payload
+
+    def _post(payload: dict) -> dict:
+        request = urllib.request.Request(
+            GROQ_CHAT_URL,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "PayCircle/0.1 (FastAPI backend)",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    try:
+        try:
+            body = _post(_payload(True))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429:
+                raise ReceiptExtractionError(RATE_LIMIT_MESSAGE) from exc
+            if exc.code in (400, 422):
+                body = _post(_payload(False))
+            else:
+                detail = ""
+                try:
+                    detail = exc.read().decode("utf-8", "replace")[:200]
+                except Exception:
+                    pass
+                raise RuntimeError(f"vision HTTP {exc.code}: {detail}") from exc
+        content = body["choices"][0]["message"]["content"]
+        finish_reason = body["choices"][0].get("finish_reason")
+    except ReceiptExtractionError:
+        raise
+    except Exception as exc:
+        raise ReceiptExtractionError(UNREADABLE_MESSAGE) from exc
+
+    structured, raw_text = _parse_vision_content(content)
+    if not structured and not (raw_text or "").strip():
+        stripped = THINK_BLOCK.sub("", content or "").strip()
+        if stripped:
+            raw_text = stripped
+        elif finish_reason == "length":
+            raise ReceiptExtractionError(
+                "We couldn't read this receipt. Try uploading a clearer image."
+            )
+
+    if structured.get("total") is not None or structured.get("items"):
+        info = ReceiptInfo(raw_text=raw_text or "")
+
+        def _dec(value) -> Decimal | None:
+            if value is None:
+                return None
+            try:
+                return Decimal(str(value))
+            except (InvalidOperation, ValueError):
+                return None
+
+        info.merchant = structured.get("merchant") or None
+        currency_in = structured.get("currency")
+        info.currency = (currency_in or "").upper() or None
+        date_str = structured.get("date")
+        if date_str:
+            try:
+                info.date = datetime.strptime(str(date_str)[:10], "%Y-%m-%d").replace(
+                    tzinfo=timezone.utc
+                )
+            except ValueError:
+                info.date = None
+        for item in structured.get("items") or []:
+            if isinstance(item, dict) and item.get("name"):
+                info.items.append(
+                    ReceiptItemInfo(
+                        name=str(item["name"])[:120],
+                        quantity=_dec(item.get("quantity")),
+                        unit_price=_dec(item.get("unit_price")),
+                        total=_dec(item.get("total")),
+                    )
+                )
+        info.subtotal = _dec(structured.get("subtotal"))
+        info.tax = _dec(structured.get("tax"))
+        info.discount = _dec(structured.get("discount"))
+        info.total = _dec(structured.get("total"))
+        info.amount = info.total or info.subtotal or (
+            sum((item.total or Decimal("0.00") for item in info.items), Decimal("0.00")) or None
+        )
+        if info.amount is None or info.amount <= 0:
+            raise ReceiptExtractionError(
+                "We couldn't read this receipt. Try uploading a clearer image."
+            )
+        info.category = _extract_category(json.dumps(structured))
+        info.confidence = 0.9
+        return info
+
+    if raw_text:
+        try:
+            return extract_receipt(raw_text)
+        except ReceiptExtractionError:
+            pass
+
+    raise ReceiptExtractionError(
+        "We couldn't read this receipt. Try uploading a clearer image."
+    )
+
+
+THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def _parse_vision_content(content: str) -> tuple[dict, str | None]:
+    """Safely parse the model's JSON reply; never raises."""
+    if isinstance(content, str):
+        content = THINK_BLOCK.sub("", content).strip()
+    try:
+        data = json.loads(content)
+        if isinstance(data, dict):
+            raw_text = data.pop("raw_text", None)
+            return data, raw_text if isinstance(raw_text, str) else None
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    match = re.search(r"\{.*\}", content or "", re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group(0))
+            if isinstance(data, dict):
+                raw_text = data.pop("raw_text", None)
+                return data, raw_text if isinstance(raw_text, str) else None
+        except json.JSONDecodeError:
+            pass
+    return {}, content if isinstance(content, str) else None

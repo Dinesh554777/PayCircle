@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str = ""
     AI_API_KEY: str = ""
     AI_MODEL: str = "llama-3.3-70b-versatile"
+    AI_VISION_MODEL: str = "qwen/qwen3.6-27b"
 
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
