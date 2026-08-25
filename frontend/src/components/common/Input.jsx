@@ -1,4 +1,5 @@
-import { forwardRef, useId } from "react";
+import { forwardRef, useId, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 const Input = forwardRef(function Input(
   {
@@ -11,11 +12,19 @@ const Input = forwardRef(function Input(
     className = "",
     required,
     textarea = false,
+    passwordToggle = false,
     ...props
   },
   ref
 ) {
   const id = useId();
+  const [showPassword, setShowPassword] = useState(false);
+  const showToggle = !textarea && type === "password" && passwordToggle;
+  const resolvedType = showToggle && showPassword ? "text" : type;
+
+  function toggleVisibility() {
+    setShowPassword((visible) => !visible);
+  }
 
   const fieldClasses = `field ${className}`;
 
@@ -66,13 +75,29 @@ const Input = forwardRef(function Input(
           ref={ref}
           id={id}
           name={name}
-          type={type}
-          className={`input${error ? " input-error" : ""}`}
+          type={resolvedType}
+          className={`input${error ? " input-error" : ""}${showToggle ? " input-has-trailing" : ""}`}
           aria-invalid={error ? "true" : undefined}
           aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
           required={required}
           {...props}
         />
+        {showToggle && (
+          <button
+            type="button"
+            className="input-trailing-btn"
+            onClick={toggleVisibility}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            aria-controls={id}
+          >
+            {showPassword ? (
+              <EyeOff aria-hidden="true" />
+            ) : (
+              <Eye aria-hidden="true" />
+            )}
+          </button>
+        )}
       </div>
       {error && (
         <span className="field-error" id={`${id}-error`}>

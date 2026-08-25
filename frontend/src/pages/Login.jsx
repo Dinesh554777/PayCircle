@@ -58,6 +58,7 @@ export default function Login() {
           icon={Lock}
           required
           autoComplete="current-password"
+          passwordToggle
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />

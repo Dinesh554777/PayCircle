@@ -73,6 +73,7 @@ export default function Register() {
           icon={Lock}
           required
           autoComplete="new-password"
+          passwordToggle
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -83,6 +84,7 @@ export default function Register() {
           icon={Lock}
           required
           autoComplete="new-password"
+          passwordToggle
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
         />
