@@ -48,7 +48,7 @@ class InsightsService:
                 suggestions=["Record your first expense to get personalized suggestions."],
             )
 
-        total = sum((row[1] for row in rows), Decimal("0.00"))
+        total = sum((row.share for row in rows), Decimal("0.00"))
         count = len(rows)
         average = total / Decimal(count)
 
@@ -59,14 +59,13 @@ class InsightsService:
 
         largest = rows[0]
         for row in rows:
-            expense, share, date, category = row.expense, row.share, row.date, row.category
-            category_totals[category] += share
-            category_counts[category] += 1
-            key = (date.year, date.month)
-            monthly_totals[key] += share
+            category_totals[row.category] += row.share
+            category_counts[row.category] += 1
+            key = (row.date.year, row.date.month)
+            monthly_totals[key] += row.share
             monthly_counts[key] += 1
-            if share > largest[1]:
-                largest = (expense, share, date, category)
+            if row.share > largest.share:
+                largest = row
 
         top_category = (
             max(category_totals, key=lambda cat: category_totals[cat])
@@ -107,9 +106,9 @@ class InsightsService:
         spending_change = self._spending_change(sorted(monthly_totals.items()))
 
         largest_expense = TopExpense(
-            title=largest[0].title or "Expense",
-            amount=largest[1],
-            date=largest[2],
+            title=largest.expense.title or "Expense",
+            amount=largest.share,
+            date=largest.date,
         )
 
         insights = self._build_insights(

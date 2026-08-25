@@ -46,7 +46,9 @@ class Chatbot:
 
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         settings = get_settings()
-        self.api_key = api_key if api_key is not None else settings.AI_API_KEY
+        self.api_key = (
+            api_key if api_key is not None else settings.effective_ai_api_key
+        )
         self.model = model or settings.AI_MODEL
 
     def answer(self, question: str, context: dict) -> str:

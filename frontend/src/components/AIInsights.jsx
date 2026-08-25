@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Sparkles, Lightbulb, TrendingUp } from "lucide-react";
 import Card from "./common/Card";
 import Skeleton, { SkeletonText } from "./common/Skeleton";
@@ -40,13 +40,27 @@ export default function AIInsights() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const inFlight = useRef(false);
+
+  const load = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await apiRequest("/ai/insights", { auth: true });
+      setData(result);
+    } catch {
+      setError("We couldn't generate insights right now.");
+    } finally {
+      inFlight.current = false;
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    apiRequest("/ai/insights", { auth: true })
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -67,7 +81,15 @@ export default function AIInsights() {
   }
 
   if (error) {
-    return <ErrorState title="Couldn't load AI insights" message={error} compact />;
+    return (
+      <ErrorState
+        title="Couldn't load AI insights"
+        message={error}
+        compact
+        onRetry={load}
+        retryLabel="Try Again"
+      />
+    );
   }
 
   if (!data) return null;
