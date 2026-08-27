@@ -9,6 +9,7 @@ import {
   Sparkles,
   MessageSquare,
   Bell,
+  Mail,
   User,
   Shield,
   LogOut,
@@ -42,6 +43,7 @@ function getPageTitle(pathname) {
   if (pathname.startsWith("/chat")) return "AI Assistant";
   if (pathname.startsWith("/insights")) return "AI Insights";
   if (pathname.startsWith("/notifications")) return "Notifications";
+  if (pathname.startsWith("/invitations")) return "Invitations";
   if (pathname.startsWith("/profile")) return "Profile";
   if (pathname.startsWith("/admin")) return "Admin";
   if (pathname.startsWith("/groups")) return "Groups";
@@ -89,6 +91,7 @@ export default function Layout() {
     { to: "/insights", label: "AI Insights", icon: Sparkles },
     { to: "/chat", label: "AI Assistant", icon: MessageSquare },
     { to: "/notifications", label: "Notifications", icon: Bell },
+    { to: "/invitations", label: "Invitations", icon: Mail },
     { to: "/profile", label: "Profile", icon: User },
   ];
   if (user?.is_admin) {

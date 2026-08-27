@@ -15,6 +15,7 @@ import Chat from "./pages/Chat";
 import Insights from "./pages/Insights";
 import AdminPage from "./pages/AdminPage";
 import Notifications from "./pages/Notifications";
+import Invitations from "./pages/Invitations";
 import AuthCallback from "./pages/AuthCallback";
 import Layout from "./components/Layout";
 
@@ -75,6 +76,7 @@ function AppRoutes() {
         <Route path="/chat" element={<Chat />} />
         <Route path="/insights" element={<Insights />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/invitations" element={<Invitations />} />
         <Route
           path="/admin"
           element={

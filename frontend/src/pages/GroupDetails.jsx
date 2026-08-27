@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Plus, ArrowLeft, UserMinus, LogOut, Mail } from "lucide-react";
+import { Plus, ArrowLeft, UserMinus, LogOut, Mail, Clock, Send, Trash2 } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
@@ -25,6 +25,7 @@ export default function GroupDetails() {
   const [removeTarget, setRemoveTarget] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
   const toast = useToast();
 
   function setActiveGroup() {
@@ -43,28 +44,64 @@ export default function GroupDetails() {
     }
   }
 
+  async function loadPendingInvitations() {
+    try {
+      const data = await apiRequest(`/groups/${id}/invitations`, { auth: true });
+      setPendingInvitations(data.filter((inv) => inv.status === "pending"));
+    } catch {
+      setPendingInvitations([]);
+    }
+  }
+
   useEffect(() => {
     setActiveGroup();
     loadGroup();
+    loadPendingInvitations();
   }, [id]);
 
-  async function handleAddMember(event) {
+  async function handleInviteMember(event) {
     event.preventDefault();
     setError("");
     setAdding(true);
     try {
-      await apiRequest(`/groups/${id}/members`, {
+      await apiRequest(`/groups/${id}/invitations`, {
         method: "POST",
         body: { email },
         auth: true,
       });
       setEmail("");
-      toast.success("Member added");
-      await loadGroup();
+      toast.success(`Invitation sent to ${email}`);
+      await loadPendingInvitations();
     } catch (err) {
       toast.error(err.message);
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function handleResend(invitationId) {
+    try {
+      await apiRequest(`/invitations/${invitationId}/resend`, {
+        method: "POST",
+        auth: true,
+      });
+      toast.success("Invitation resent");
+      await loadPendingInvitations();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  }
+
+  async function handleCancelInvitation(invitationId) {
+    try {
+      await apiRequest(`/invitations/${invitationId}`, {
+        method: "DELETE",
+        auth: true,
+      });
+      toast.success("Invitation cancelled");
+      await loadPendingInvitations();
+    } catch (err) {
+      toast.error(err.message);
     }
   }
 
@@ -165,20 +202,21 @@ export default function GroupDetails() {
       </div>
 
       <Card title={`Members (${group.members.length})`}>
-        <form onSubmit={handleAddMember} className="flex gap-2 items-end wrap mb-3">
+        <form onSubmit={handleInviteMember} className="flex gap-2 items-end wrap mb-3">
           <div style={{ flex: 1, minWidth: 220, maxWidth: 320 }}>
             <Input
-              label="Add member by email"
+              label="Invite member by email"
               name="email"
               type="email"
               icon={Mail}
               required
+              placeholder="member@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <Button type="submit" loading={adding}>
-            Add Member
+            <Send aria-hidden="true" /> Send Invitation
           </Button>
         </form>
 
@@ -213,6 +251,46 @@ export default function GroupDetails() {
           })}
         </ul>
       </Card>
+
+      {pendingInvitations.length > 0 && (
+        <Card title={`Pending Invitations (${pendingInvitations.length})`} className="mt-4">
+          <ul className="member-list">
+            {pendingInvitations.map((inv) => (
+              <li key={inv.id} className="member-row">
+                <Avatar name={inv.invitee_email?.charAt(0).toUpperCase()} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="text-semibold">{inv.invitee_email}</div>
+                  <div className="flex items-center gap-1 text-muted text-sm">
+                    <Clock aria-hidden="true" style={{ width: 12, height: 12 }} />
+                    <span>
+                      Sent {formatDate(inv.created_at)} · Expires in{" "}
+                      {Math.max(0, Math.ceil((new Date(inv.expires_at) - new Date()) / (1000 * 60 * 60 * 24)))} day
+                      {Math.max(0, Math.ceil((new Date(inv.expires_at) - new Date()) / (1000 * 60 * 60 * 24))) === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleResend(inv.id)}
+                  >
+                    <Send aria-hidden="true" /> Resend
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-danger"
+                    onClick={() => handleCancelInvitation(inv.id)}
+                  >
+                    <Trash2 aria-hidden="true" /> Cancel
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <ConfirmModal
         open={Boolean(removeTarget)}

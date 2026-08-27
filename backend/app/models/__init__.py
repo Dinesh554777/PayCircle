@@ -3,6 +3,7 @@ from app.models.expense import Expense
 from app.models.expense_payment import ExpensePayment
 from app.models.expense_split import ExpenseSplit
 from app.models.group import Group
+from app.models.group_invitation import GroupInvitation
 from app.models.group_member import GroupMember
 from app.models.notification import Notification
 from app.models.payment import Payment
@@ -16,6 +17,7 @@ __all__ = [
     "ExpensePayment",
     "ExpenseSplit",
     "Group",
+    "GroupInvitation",
     "GroupMember",
     "Notification",
     "Payment",

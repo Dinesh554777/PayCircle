@@ -13,6 +13,7 @@ from app.routes import (
     groups,
     health,
     insights,
+    invitations,
     notifications,
     payments,
     prediction,
@@ -42,6 +43,7 @@ api_router.include_router(search.router, tags=["search"])
 api_router.include_router(
     notifications.router, prefix="/notifications", tags=["notifications"]
 )
+api_router.include_router(invitations.router, tags=["invitations"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(insights.router, prefix="/ai", tags=["ai"])
 api_router.include_router(chat.router, prefix="/ai", tags=["ai"])

@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = ""
     GROQ_API_KEY: str = ""
 
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASS: str = ""
+    EMAIL_FROM: str = ""
+
     @property
     def effective_ai_api_key(self) -> str:
         return self.GROQ_API_KEY or self.AI_API_KEY
