@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { UserRound } from "lucide-react";
+import { UserRound, Volume2, VolumeOff } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
@@ -7,6 +7,8 @@ import Avatar from "../components/common/Avatar";
 import Badge from "../components/common/Badge";
 import { useToast } from "../components/common/Toast";
 import { useAuth } from "../context/AuthContext";
+import { useNotificationSound } from "../hooks/useNotificationSound";
+import { playTestSound } from "../utils/notificationSound";
 
 export default function Profile() {
   const { user, updateProfile } = useAuth();
@@ -16,6 +18,7 @@ export default function Profile() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
+  const { soundOn, toggleSound } = useNotificationSound(0);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -88,6 +91,32 @@ export default function Profile() {
           </form>
         </Card>
       </div>
+
+      <Card title="Notification Sound" className="mt-4" style={{ maxWidth: 480 }}>
+        <div className="flex justify-between items-center gap-3">
+          <div style={{ flex: 1 }}>
+            <div className="text-semibold text-sm">Play sound for new notifications</div>
+            <div className="text-muted text-sm mt-1">
+              {soundOn
+                ? "You will hear a chime when a new notification arrives."
+                : "Notifications will appear silently."}
+            </div>
+          </div>
+          <button
+            type="button"
+            className={`btn btn-sm ${soundOn ? "btn-primary" : "btn-secondary"}`}
+            onClick={toggleSound}
+          >
+            {soundOn ? <Volume2 aria-hidden="true" /> : <VolumeOff aria-hidden="true" />}
+            {soundOn ? " ON" : " OFF"}
+          </button>
+        </div>
+        <div className="mt-3">
+          <Button variant="ghost" size="sm" onClick={playTestSound}>
+            <Volume2 aria-hidden="true" /> Test Notification Sound
+          </Button>
+        </div>
+      </Card>
     </>
   );
 }

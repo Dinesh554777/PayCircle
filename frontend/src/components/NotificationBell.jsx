@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, CheckCheck, Settings } from "lucide-react";
+import { Bell, CheckCheck, Settings, Volume2, VolumeOff } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { formatDateTime } from "../utils/format";
 import Badge from "./common/Badge";
+import { useNotificationSound } from "../hooks/useNotificationSound";
 
 export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -12,6 +13,7 @@ export default function NotificationBell() {
   const [loading, setLoading] = useState(false);
   const ref = useRef(null);
   const navigate = useNavigate();
+  const { soundOn, toggleSound } = useNotificationSound(unreadCount);
 
   function refreshCount() {
     apiRequest("/notifications/unread-count", { auth: true })
@@ -93,6 +95,15 @@ export default function NotificationBell() {
           <div className="dropdown-head">
             <span className="text-semibold">Notifications</span>
             <div className="flex gap-1">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={toggleSound}
+                aria-label={soundOn ? "Mute notification sounds" : "Unmute notification sounds"}
+                title={soundOn ? "Sound on" : "Sound off"}
+              >
+                {soundOn ? <Volume2 aria-hidden="true" /> : <VolumeOff aria-hidden="true" />}
+              </button>
               {unreadItems.length > 0 && (
                 <button type="button" className="btn btn-ghost btn-sm" onClick={markAllRead}>
                   <CheckCheck aria-hidden="true" /> Mark all read
