@@ -412,7 +412,19 @@ def extract_receipt_from_image(image_bytes: bytes, media_type: str) -> ReceiptIn
             payload["reasoning_format"] = "hidden"
         return payload
 
-    def _post(payload: dict) -> dict:
+    import time as _time
+
+    def _post(
+        payload: dict,
+        *,
+        retries: int = 3,
+        base_delay: float = 2.0,
+    ) -> dict:
+        """POST to Groq, retrying transient 429/5xx responses with backoff.
+
+        Provider per-minute limits are common for vision models, so we wait
+        and retry a few times before surfacing the rate-limit message.
+        """
         request = urllib.request.Request(
             GROQ_CHAT_URL,
             data=json.dumps(payload).encode("utf-8"),
@@ -423,8 +435,20 @@ def extract_receipt_from_image(image_bytes: bytes, media_type: str) -> ReceiptIn
             },
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return json.loads(response.read().decode("utf-8"))
+        attempt = 0
+        while attempt <= retries:
+            try:
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                retryable = exc.code == 429 or exc.code >= 500
+                if retryable and attempt < retries:
+                    attempt += 1
+                    delay = base_delay * (2 ** (attempt - 1))
+                    _time.sleep(delay)
+                    continue
+                raise
+        raise RuntimeError("vision request exhausted retries")
 
     try:
         try:
