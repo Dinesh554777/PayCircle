@@ -34,12 +34,12 @@ export default function GroupTransactions() {
     Promise.all([
       apiRequest(`/groups/${id}`, { auth: true }),
       apiRequest(`/groups/${id}/transactions`, { auth: true }),
-      apiRequest("/payments", { auth: true }),
+      apiRequest(`/payments?group_id=${id}`, { auth: true }),
     ])
       .then(([g, items, paymentItems]) => {
         setGroup(g);
         setFeed(items);
-        setPayments(paymentItems.filter((payment) => String(payment.group_id) === String(id)));
+        setPayments(paymentItems);
         setError("");
       })
       .catch((err) => setError(err.message))

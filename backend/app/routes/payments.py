@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -47,10 +47,11 @@ def verify_payment(
 
 @router.get("", response_model=list[PaymentRead])
 def list_payments(
+    group_id: int | None = Query(None, description="Filter payments to a specific group"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return PaymentService(db).list_for_user(current_user)
+    return PaymentService(db).list_for_user(current_user, group_id=group_id)
 
 
 @router.get("/settlement/{settlement_id}", response_model=PaymentRead)

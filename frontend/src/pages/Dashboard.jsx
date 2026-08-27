@@ -84,10 +84,14 @@ export default function Dashboard() {
   function loadDashboard() {
     setLoading(true);
     setError("");
-    apiRequest("/dashboard", { auth: true })
+    setData(null);
+    const url = selectedGroupId
+      ? `/dashboard?group_id=${selectedGroupId}`
+      : "/dashboard";
+    apiRequest(url, { auth: true })
       .then((dashboard) => {
         setData(dashboard);
-        if (dashboard.recent_groups.length > 0 && !quickGroupId) {
+        if (!selectedGroupId && dashboard.recent_groups.length > 0 && !quickGroupId) {
           setQuickGroupId(String(dashboard.recent_groups[0].id));
         }
       })
@@ -97,7 +101,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboard();
-  }, []);
+  }, [selectedGroupId]);
 
   function handleQuickAdd(event) {
     event.preventDefault();
@@ -142,13 +146,9 @@ export default function Dashboard() {
       ]
     : [];
 
-  const filteredGroups = data && selectedGroupId
-    ? data.recent_groups.filter((g) => String(g.id) === selectedGroupId)
-    : data?.recent_groups || [];
+  const filteredGroups = data?.recent_groups || [];
 
-  const selectedGroupAnalytics = data && selectedGroupId
-    ? data.analytics
-    : data?.analytics;
+  const selectedGroupAnalytics = data?.analytics;
 
   return (
     <>

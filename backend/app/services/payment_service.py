@@ -186,11 +186,18 @@ class PaymentService(BaseService[Payment]):
             raise HTTPException(status_code=404, detail="Payment not found")
         return payment
 
-    def list_for_user(self, actor: User) -> list[Payment]:
-        return (
+    def list_for_user(self, actor: User, group_id: int | None = None) -> list[Payment]:
+        query = (
             self.db.query(Payment)
             .filter((Payment.payer_id == actor.id) | (Payment.receiver_id == actor.id))
-            .order_by(Payment.created_at.desc(), Payment.id.desc())
+        )
+        if group_id is not None:
+            self.groups.get_group_for_user(group_id, actor)
+            query = query.join(Settlement, Settlement.id == Payment.settlement_id).filter(
+                Settlement.group_id == group_id
+            )
+        return (
+            query.order_by(Payment.created_at.desc(), Payment.id.desc())
             .all()
         )
 
