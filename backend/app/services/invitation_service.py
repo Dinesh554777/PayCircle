@@ -1,4 +1,5 @@
 """Group invitation service — send, accept, decline, resend."""
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
@@ -11,6 +12,8 @@ from app.models.user import User
 from app.services.activity_service import ActivityService, ActivityType
 from app.services.email_service import send_invitation_email
 from app.services.notification_service import NotificationService, NotificationType
+
+logger = logging.getLogger("paycircle.invitations")
 
 INVITATION_EXPIRY_DAYS = 7
 
@@ -49,7 +52,13 @@ class InvitationService:
         self.db.add(invitation)
         self.db.flush()
 
-        send_invitation_email(email, actor.name, group.name, token)
+        email_ok = send_invitation_email(email, actor.name, group.name, token)
+        if not email_ok:
+            logger.warning("Failed to send invitation email to %s for group '%s'", email, group.name)
+            raise HTTPException(
+                status_code=502,
+                detail="Invitation created but the email could not be sent. Check SMTP configuration.",
+            )
 
         if invitee_user:
             self.notifications.create_notification(
@@ -78,9 +87,15 @@ class InvitationService:
         invitation.declined_at = None
         self.db.flush()
 
-        send_invitation_email(
+        email_ok = send_invitation_email(
             invitation.invitee_email, actor.name, group.name, invitation.token
         )
+        if not email_ok:
+            logger.warning("Failed to resend invitation email to %s", invitation.invitee_email)
+            raise HTTPException(
+                status_code=502,
+                detail="Invitation updated but the email could not be sent. Check SMTP configuration.",
+            )
 
         if invitation.invitee_user_id:
             self.notifications.create_notification(
