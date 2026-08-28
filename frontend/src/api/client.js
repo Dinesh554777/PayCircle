@@ -21,7 +21,9 @@ export async function apiRequest(path, { method = "GET", body, auth = false } = 
   if (body instanceof FormData) {
     payload = body;
   } else {
-    headers["Content-Type"] = "application/json";
+    if (body) {
+      headers["Content-Type"] = "application/json";
+    }
     payload = body ? JSON.stringify(body) : undefined;
   }
 

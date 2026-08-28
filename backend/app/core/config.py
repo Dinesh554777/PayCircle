@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     SMTP_PASS: str = ""
     EMAIL_FROM: str = ""
 
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = ""  # Verified sender, e.g. PayCircle <noreply@yourdomain.com>
+
     @property
     def effective_ai_api_key(self) -> str:
         return self.GROQ_API_KEY or self.AI_API_KEY
