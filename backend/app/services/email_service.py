@@ -31,7 +31,14 @@ class EmailService:
         html_body: str,
         text_body: str = "",
     ) -> bool:
-        """Send an email. Returns True on success, False on failure."""
+        """Send an email. Returns True on success, False on failure.
+
+        Uses the Resend HTTPS API when RESEND_API_KEY is configured (required on
+        Render, which blocks outbound SMTP). Falls back to SMTP otherwise.
+        """
+        if settings.RESEND_API_KEY:
+            return EmailService._send_via_resend(to, subject, html_body, text_body)
+
         smtp_host = settings.SMTP_HOST
         smtp_port = settings.SMTP_PORT
         smtp_user = settings.SMTP_USER
@@ -63,13 +70,60 @@ class EmailService:
                 server.login(smtp_user, smtp_pass)
                 server.sendmail(email_from, [to], msg.as_string())
 
-            logger.info("Email sent to %s — subject: %s", to, subject)
+            logger.info("Email sent via SMTP to %s — subject: %s", to, subject)
             return True
         except smtplib.SMTPAuthenticationError:
             logger.error("SMTP authentication failed — check SMTP_USER/SMTP_PASS")
             return False
         except Exception:
-            logger.exception("Failed to send email to %s", to)
+            logger.exception("Failed to send email via SMTP to %s", to)
+            return False
+
+    # ── Resend (HTTPS API — required on Render) ─────────────────────────
+
+    @staticmethod
+    def _send_via_resend(
+        to: str,
+        subject: str,
+        html_body: str,
+        text_body: str,
+    ) -> bool:
+        email_from = settings.RESEND_FROM or settings.EMAIL_FROM
+        if not email_from:
+            logger.warning(
+                "RESEND_FROM (or EMAIL_FROM) not set — Resend requires a verified sender"
+            )
+            return False
+
+        payload = {
+            "from": email_from,
+            "to": [to] if isinstance(to, str) else list(to),
+            "subject": subject,
+        }
+        if html_body:
+            payload["html"] = html_body
+        if text_body:
+            payload["text"] = text_body
+
+        try:
+            with httpx.Client(timeout=30) as client:
+                resp = client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+            if resp.status_code != 200:
+                logger.error(
+                    "Resend send failed (%s): %s", resp.status_code, resp.text[:500]
+                )
+                return False
+            logger.info("Email sent via Resend to %s — subject: %s", to, subject)
+            return True
+        except httpx.RequestError:
+            logger.exception("Failed to reach Resend API")
             return False
 
     # ── group invitation ────────────────────────────────────────────────
@@ -238,7 +292,28 @@ class EmailService:
 
     @staticmethod
     def test_connection() -> dict:
-        """Test SMTP login without sending any email. Returns status dict."""
+        """Test the configured email transport without sending. Returns status dict."""
+        if settings.RESEND_API_KEY:
+            try:
+                with httpx.Client(timeout=20) as client:
+                    resp = client.get(
+                        "https://api.resend.com/domains",
+                        headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                    )
+                if resp.status_code != 200:
+                    return {
+                        "ok": False,
+                        "transport": "resend",
+                        "error": f"Resend API key rejected ({resp.status_code})",
+                    }
+                return {
+                    "ok": True,
+                    "transport": "resend",
+                    "from": settings.RESEND_FROM or settings.EMAIL_FROM,
+                }
+            except Exception as exc:
+                return {"ok": False, "transport": "resend", "error": str(exc)}
+
         smtp_host = settings.SMTP_HOST
         smtp_port = settings.SMTP_PORT
         smtp_user = settings.SMTP_USER
@@ -258,15 +333,15 @@ class EmailService:
                     server.ehlo()
                 server.login(smtp_user, smtp_pass)
             logger.info("SMTP connection test passed for %s:%s", smtp_host, smtp_port)
-            return {"ok": True, "host": smtp_host, "port": smtp_port, "user": smtp_user}
+            return {"ok": True, "transport": "smtp", "host": smtp_host, "port": smtp_port, "user": smtp_user}
         except smtplib.SMTPAuthenticationError:
             msg = "SMTP authentication failed — check SMTP_USER and SMTP_PASS"
             logger.error(msg)
-            return {"ok": False, "error": msg}
+            return {"ok": False, "transport": "smtp", "error": msg}
         except Exception as exc:
             msg = f"SMTP connection failed: {exc}"
             logger.exception(msg)
-            return {"ok": False, "error": msg}
+            return {"ok": False, "transport": "smtp", "error": msg}
 
 
 # ── convenience re-exports so existing callers don't break ──────────────
