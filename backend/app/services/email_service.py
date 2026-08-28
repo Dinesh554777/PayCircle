@@ -12,11 +12,7 @@ logger = logging.getLogger("paycircle.email")
 
 settings = get_settings()
 
-FRONTEND_URL = (
-    settings.CORS_ORIGINS.split(",")[0].strip()
-    if settings.CORS_ORIGINS
-    else "http://localhost:5173"
-)
+FRONTEND_URL = settings.frontend_base_url
 
 
 class EmailService:

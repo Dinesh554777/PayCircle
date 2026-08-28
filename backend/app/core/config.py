@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     DATABASE_URL_UNPOOLED: str = ""  # Direct (non-pooled) URL for migrations
     SECRET_KEY: str = "change-me-in-production"
     JWT_SECRET: str = ""
+    FRONTEND_URL: str = ""  # Public frontend base URL used in email links; defaults to first CORS origin
     AI_API_KEY: str = ""
     AI_MODEL: str = "llama-3.3-70b-versatile"
     AI_VISION_MODEL: str = "qwen/qwen3.6-27b"
@@ -61,6 +62,15 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def frontend_base_url(self) -> str:
+        """Base URL used to build links embedded in emails (invitations, etc.)."""
+        if self.FRONTEND_URL.strip():
+            return self.FRONTEND_URL.strip()
+        if self.cors_origins_list:
+            return self.cors_origins_list[0]
+        return "http://localhost:5173"
 
 
 @lru_cache
