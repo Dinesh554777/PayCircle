@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     DATABASE_URL: str = "postgresql://paycircle:paycircle@localhost:5432/paycircle"
+    DATABASE_URL_UNPOOLED: str = ""  # Direct (non-pooled) URL for migrations
     SECRET_KEY: str = "change-me-in-production"
     JWT_SECRET: str = ""
     AI_API_KEY: str = ""

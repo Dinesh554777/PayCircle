@@ -14,3 +14,4 @@ google-auth==2.38.0
 razorpay==1.4.1
 python-multipart==0.0.32
 Pillow==12.3.0
+rapidocr-onnxruntime==1.4.4

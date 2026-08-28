@@ -13,7 +13,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().DATABASE_URL)
+# Use the direct (unpooled) URL for migrations to avoid PgBouncer issues.
+# Falls back to the main DATABASE_URL if DATABASE_URL_UNPOOLED is not set.
+_settings = get_settings()
+_migration_url = _settings.DATABASE_URL_UNPOOLED or _settings.DATABASE_URL
+config.set_main_option("sqlalchemy.url", _migration_url)
 
 target_metadata = Base.metadata
 

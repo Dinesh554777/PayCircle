@@ -134,6 +134,56 @@ def _prepare_image(image_bytes: bytes, media_type: str) -> tuple[bytes, str]:
         return image_bytes, media_type
 
 
+def _ocr_image_local(image_bytes: bytes, media_type: str) -> str | None:
+    """Run fully-offline OCR (RapidOCR) on a receipt image.
+
+    Returns the raw recognized text, or None if local OCR is unavailable or
+    recognizes nothing usable. Local OCR has no rate limits, so it gives a
+    reliable path even when the hosted vision provider is busy. The OCR model
+    is loaded once and reused across calls.
+    """
+    try:
+        import io
+
+        from PIL import Image
+        from rapidocr_onnxruntime import RapidOCR
+
+        engine = _get_local_ocr_engine()
+        image = Image.open(io.BytesIO(image_bytes))
+        if image.mode not in ("RGB", "L"):
+            image = image.convert("RGB")
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        result, _ = engine(buffer.getvalue())
+        if not result:
+            return None
+        lines = [line[1] for line in result if line and isinstance(line[1], str)]
+        text = "\n".join(lines).strip()
+        return text or None
+    except Exception:
+        return None
+
+
+_LOCAL_OCR_ENGINE = None
+_LOCAL_OCR_LOCK = None
+
+
+def _get_local_ocr_engine():
+    """Lazily build and cache the RapidOCR engine (thread-safe once built)."""
+    global _LOCAL_OCR_ENGINE, _LOCAL_OCR_LOCK
+    if _LOCAL_OCR_ENGINE is not None:
+        return _LOCAL_OCR_ENGINE
+    if _LOCAL_OCR_LOCK is None:
+        import threading
+
+        _LOCAL_OCR_LOCK = threading.Lock()
+    with _LOCAL_OCR_LOCK:
+        if _LOCAL_OCR_ENGINE is None:
+            from rapidocr_onnxruntime import RapidOCR
+
+            _LOCAL_OCR_ENGINE = RapidOCR()
+    return _LOCAL_OCR_ENGINE
+
 @dataclass
 class ReceiptItemInfo:
     name: str
@@ -376,12 +426,32 @@ def extract_receipt(text: str) -> ReceiptInfo:
 
 
 def extract_receipt_from_image(image_bytes: bytes, media_type: str) -> ReceiptInfo:
-    """OCR a receipt image through the configured Groq vision model.
+    """OCR a receipt image and return parsed ReceiptInfo.
 
-    Returns parsed ReceiptInfo; raises ReceiptExtractionError with a safe,
-    non-technical message when the provider is not configured, unreachable,
-    or the image cannot be read.
+    Strategy (robust regardless of provider rate limits):
+    1. Fully-offline local OCR (RapidOCR) -> deterministic text parser. No
+       external API, no rate limits, always available -> returns fast.
+    2. If local OCR yields no usable amount, fall back to the hosted Groq
+       vision model (with automatic retry on transient 429/5xx).
+
+    Raises ReceiptExtractionError with a safe, non-technical message when the
+    image cannot be read at all.
     """
+    # ── Path 1: offline local OCR + deterministic parser ─────────────────
+    try:
+        local_text = _ocr_image_local(image_bytes, media_type)
+        if local_text and local_text.strip():
+            try:
+                info = extract_receipt(local_text)
+                info.confidence = max(info.confidence, 0.75)
+                info.raw_text = local_text
+                return info
+            except ReceiptExtractionError:
+                pass  # amount not readable locally -> fall through to vision
+    except Exception:
+        pass
+
+    # ── Path 2: hosted Groq vision model (fallback) ──────────────────────
     settings = get_settings()
     api_key = settings.effective_ai_api_key
     if not api_key:
@@ -412,18 +482,21 @@ def extract_receipt_from_image(image_bytes: bytes, media_type: str) -> ReceiptIn
             payload["reasoning_format"] = "hidden"
         return payload
 
+    import random as _random
     import time as _time
 
     def _post(
         payload: dict,
         *,
-        retries: int = 3,
-        base_delay: float = 2.0,
+        retries: int = 6,
+        base_delay: float = 1.5,
+        max_delay: float = 20.0,
     ) -> dict:
         """POST to Groq, retrying transient 429/5xx responses with backoff.
 
-        Provider per-minute limits are common for vision models, so we wait
-        and retry a few times before surfacing the rate-limit message.
+        Provider per-minute limits are common for vision models. We wait (and
+        respect any Retry-After header) and retry a few times so a transient
+        rate limit resolves itself instead of failing the scan.
         """
         request = urllib.request.Request(
             GROQ_CHAT_URL,
@@ -438,16 +511,19 @@ def extract_receipt_from_image(image_bytes: bytes, media_type: str) -> ReceiptIn
         attempt = 0
         while attempt <= retries:
             try:
-                with urllib.request.urlopen(request, timeout=60) as response:
+                with urllib.request.urlopen(request, timeout=90) as response:
                     return json.loads(response.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
                 retryable = exc.code == 429 or exc.code >= 500
-                if retryable and attempt < retries:
-                    attempt += 1
-                    delay = base_delay * (2 ** (attempt - 1))
-                    _time.sleep(delay)
-                    continue
-                raise
+                if not retryable or attempt >= retries:
+                    raise
+                attempt += 1
+                delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                if retry_after and retry_after.isdigit():
+                    delay = max(delay, min(float(retry_after), max_delay))
+                delay = delay + _random.uniform(0, 1.0)
+                _time.sleep(delay)
         raise RuntimeError("vision request exhausted retries")
 
     try:
