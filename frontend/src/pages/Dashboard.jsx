@@ -9,6 +9,7 @@ import EmptyState from "../components/common/EmptyState";
 import ErrorState from "../components/common/ErrorState";
 import Skeleton, { SkeletonText } from "../components/common/Skeleton";
 import TransactionItem from "../components/transactions/TransactionItem";
+import InvitationsPreview from "../components/invitations/InvitationsPreview";
 import AIInsights from "../components/AIInsights";
 import SpendingPrediction from "../components/SpendingPrediction";
 import BudgetCard from "../components/BudgetCard";
@@ -209,6 +210,10 @@ export default function Dashboard() {
               </BlurFade>
             ))}
           </div>
+
+          <BlurFade delay={0.08} duration={0.4}>
+            <InvitationsPreview />
+          </BlurFade>
 
           <BlurFade delay={0.1} duration={0.4}>
             <Suspense

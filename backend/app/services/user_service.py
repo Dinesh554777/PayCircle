@@ -14,13 +14,36 @@ class UserService(BaseService[User]):
     def get_by_email(self, email: str) -> User | None:
         return self.db.query(User).filter(User.email == email).first()
 
+    def get_by_username(self, username: str) -> User | None:
+        return (
+            self.db.query(User).filter(User.username == username.strip().lower()).first()
+        )
+
+    def search_by_username(self, query: str, exclude_user_id: int, limit: int = 8) -> list[User]:
+        """Return users whose username contains the query, excluding the given user."""
+        q = query.strip().lower()
+        if not q:
+            return []
+        return (
+            self.db.query(User)
+            .filter(User.username.ilike(f"%{q}%"), User.id != exclude_user_id)
+            .order_by(User.username)
+            .limit(limit)
+            .all()
+        )
+
     def create_user(self, data: UserCreate) -> User:
         if self.get_by_email(data.email) is not None:
             raise HTTPException(
                 status_code=409, detail="A user with this email already exists"
             )
+        if self.get_by_username(data.username) is not None:
+            raise HTTPException(
+                status_code=409, detail="That username is already taken"
+            )
         return self.create(
             name=data.name,
+            username=self._normalize_username(data.username),
             email=data.email,
             password_hash=hash_password(data.password),
         )
@@ -32,6 +55,12 @@ class UserService(BaseService[User]):
                     status_code=409, detail="A user with this email already exists"
                 )
             user.email = data.email
+        if data.username is not None and data.username != user.username:
+            if self.get_by_username(data.username) is not None:
+                raise HTTPException(
+                    status_code=409, detail="That username is already taken"
+                )
+            user.username = self._normalize_username(data.username)
         if data.name is not None:
             user.name = data.name
         if data.password is not None:
@@ -86,6 +115,7 @@ class UserService(BaseService[User]):
 
         new_user = User(
             name=name,
+            username=self._ensure_unique_username(email),
             email=email,
             google_id=google_id,
             avatar_url=avatar_url,
@@ -97,3 +127,21 @@ class UserService(BaseService[User]):
         self.db.commit()
         self.db.refresh(new_user)
         return new_user
+
+    @staticmethod
+    def _normalize_username(username: str) -> str:
+        return username.strip().lower()
+
+    def _derive_username(self, email: str) -> str:
+        base = email.split("@")[0].lower()
+        base = "".join(ch for ch in base if ch.isalnum() or ch in "._-")[:50] or "user"
+        return base
+
+    def _ensure_unique_username(self, email: str) -> str:
+        base = self._derive_username(email)
+        candidate = base
+        suffix = 1
+        while self.get_by_username(candidate) is not None:
+            suffix += 1
+            candidate = f"{base}{suffix}"[:50]
+        return candidate

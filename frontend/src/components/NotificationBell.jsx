@@ -72,6 +72,14 @@ export default function NotificationBell() {
       .catch(() => {});
   }
 
+  function handleNotificationClick(item) {
+    if (!item.is_read) markRead(item.id);
+    if (item.type === "group_invitation") {
+      setOpen(false);
+      navigate("/invitations");
+    }
+  }
+
   const unreadItems = notifications.filter((item) => !item.is_read);
 
   return (
@@ -133,11 +141,11 @@ export default function NotificationBell() {
                   role={item.is_read ? undefined : "button"}
                   tabIndex={item.is_read ? undefined : 0}
                   aria-label={item.is_read ? undefined : `Mark "${item.title}" as read`}
-                  onClick={() => !item.is_read && markRead(item.id)}
+                  onClick={() => handleNotificationClick(item)}
                   onKeyDown={(event) => {
                     if (!item.is_read && (event.key === "Enter" || event.key === " ")) {
                       event.preventDefault();
-                      markRead(item.id);
+                      handleNotificationClick(item);
                     }
                   }}
                   className={item.is_read ? "notification-item" : "notification-item notification-item-unread"}

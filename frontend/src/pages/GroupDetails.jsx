@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Plus, ArrowLeft, UserMinus, LogOut, Mail, Clock, Send, Trash2, Receipt, CheckCircle2 } from "lucide-react";
+import { Plus, ArrowLeft, UserMinus, LogOut, Clock, Send, Trash2, Receipt, CheckCircle2, Search, UserPlus, Check } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
@@ -21,8 +21,6 @@ export default function GroupDetails() {
   const { user } = useAuth();
   const [group, setGroup] = useState(null);
   const [error, setError] = useState("");
-  const [email, setEmail] = useState("");
-  const [adding, setAdding] = useState(false);
   const [removeTarget, setRemoveTarget] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,6 +28,11 @@ export default function GroupDetails() {
   const [expenses, setExpenses] = useState([]);
   const [payments, setPayments] = useState([]);
   const [activeTab, setActiveTab] = useState("members");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState({});
   const toast = useToast();
 
   function setActiveGroup() {
@@ -69,23 +72,66 @@ export default function GroupDetails() {
       .catch(() => setPayments([]));
   }, [id]);
 
-  async function handleInviteMember(event) {
-    event.preventDefault();
-    setError("");
-    setAdding(true);
+  const MIN_SEARCH_CHARS = 2;
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < MIN_SEARCH_CHARS) {
+      setSearchResults([]);
+      setSearched(false);
+      setSearching(false);
+      return undefined;
+    }
+    setSearching(true);
+    const handle = setTimeout(() => {
+      apiRequest(
+        `/users/search?q=${encodeURIComponent(q)}&group_id=${id}`,
+        { auth: true }
+      )
+        .then(setSearchResults)
+        .catch(() => setSearchResults([]))
+        .finally(() => {
+          setSearching(false);
+          setSearched(true);
+        });
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchQuery, id]);
+
+  function isPendingInvite(foundUser) {
+    return pendingInvitations.some(
+      (inv) => inv.invitee_user_id === foundUser.id
+    );
+  }
+
+  async function handleSendInvite(foundUser) {
+    if (isPendingInvite(foundUser)) {
+      toast.success("Invitation already pending");
+      return;
+    }
+    setInviteStatus((s) => ({ ...s, [foundUser.username]: "sending" }));
     try {
       await apiRequest(`/groups/${id}/invitations`, {
         method: "POST",
-        body: { email },
+        body: { username: foundUser.username },
         auth: true,
       });
-      setEmail("");
-      toast.success(`Invitation sent to ${email}`);
+      setInviteStatus((s) => ({ ...s, [foundUser.username]: "sent" }));
+      toast.success(`${foundUser.name} has been invited to join ${group.name}.`);
       await loadPendingInvitations();
+      setSearchResults((prev) =>
+        prev.map((u) =>
+          u.id === foundUser.id ? { ...u, invited: true } : u
+        )
+      );
     } catch (err) {
+      setInviteStatus((s) => {
+        const next = { ...s };
+        delete next[foundUser.username];
+        return next;
+      });
       toast.error(err.message);
-    } finally {
-      setAdding(false);
+      await loadPendingInvitations();
     }
   }
 
@@ -222,56 +268,102 @@ export default function GroupDetails() {
       </div>
 
       {activeTab === "members" && (
-        <Card title={`Members (${group.members.length})`}>
-          <form onSubmit={handleInviteMember} className="flex gap-2 items-end wrap mb-3">
-            <div style={{ flex: 1, minWidth: 220, maxWidth: 320 }}>
-              <Input
-                label="Invite member by email"
-                name="email"
-                type="email"
-                icon={Mail}
-                required
-                placeholder="member@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <Button type="submit" loading={adding}>
-              <Send aria-hidden="true" /> Send Invitation
-            </Button>
-          </form>
+        <div className="flex flex-column gap-4">
+          <Card title="Invite Members">
+            <Input
+              name="usernameSearch"
+              icon={Search}
+              placeholder="Search PayCircle username..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search PayCircle username"
+            />
+            <p className="text-muted text-sm mt-2 mb-3">
+              Type at least {MIN_SEARCH_CHARS} characters to search registered
+              PayCircle users. You and existing members are hidden.
+            </p>
 
-          <ul className="member-list">
-            {group.members.map((member) => {
-              const isCreator = member.user_id === group.created_by;
-              return (
-                <li key={member.id} className="member-row">
-                  <Avatar name={member.user?.name} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-semibold">{member.user?.name}</span>
-                      {isCreator && <Badge variant="primary">creator</Badge>}
-                      {member.user_id === user?.id && <Badge variant="neutral">you</Badge>}
+            {searchQuery.trim().length >= MIN_SEARCH_CHARS && (
+              <div>
+                <p className="text-secondary text-sm mb-2">Search results</p>
+
+                {searching ? (
+                  <div className="text-muted text-sm">Searching users…</div>
+                ) : searchResults.length === 0 ? (
+                  <p className="text-muted text-sm mb-0">
+                    {searched ? "No users found." : "Keep typing to search."}
+                  </p>
+                ) : (
+                  <ul className="member-list">
+                    {searchResults.map((found) => {
+                      const status = inviteStatus[found.username] || (found.invited ? "sent" : isPendingInvite(found) ? "pending" : null);
+                      return (
+                        <li key={found.id} className="member-row">
+                          <Avatar name={found.name} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="text-semibold">{found.name}</div>
+                            <div className="text-muted text-sm">@{found.username}</div>
+                          </div>
+                          {status === "sent" ? (
+                            <Button variant="primary" size="sm" disabled>
+                              <Check aria-hidden="true" /> Invitation Sent
+                            </Button>
+                          ) : status === "pending" ? (
+                            <Button variant="secondary" size="sm" disabled>
+                              <Clock aria-hidden="true" /> Invitation pending
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleSendInvite(found)}
+                              loading={status === "sending"}
+                            >
+                              <UserPlus aria-hidden="true" /> Invite
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+          </Card>
+
+          <Card title={`Current Members (${group.members.length})`}>
+            <ul className="member-list">
+              {group.members.map((member) => {
+                const isCreator = member.user_id === group.created_by;
+                return (
+                  <li key={member.id} className="member-row">
+                    <Avatar name={member.user?.name} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-semibold">{member.user?.name}</span>
+                        {isCreator && <Badge variant="primary">creator</Badge>}
+                        {member.user_id === user?.id && <Badge variant="neutral">you</Badge>}
+                      </div>
+                      <div className="text-muted text-sm">
+                        @{member.user?.username} · joined {formatDate(member.joined_at)}
+                      </div>
                     </div>
-                    <div className="text-muted text-sm">
-                      {member.user?.email} · joined {formatDate(member.joined_at)}
-                    </div>
-                  </div>
-                  {canRemove(member) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-danger"
-                      onClick={() => setRemoveTarget(member)}
-                    >
-                      <UserMinus aria-hidden="true" /> Remove
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
+                    {canRemove(member) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-danger"
+                        onClick={() => setRemoveTarget(member)}
+                      >
+                        <UserMinus aria-hidden="true" /> Remove
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        </div>
       )}
 
       {activeTab === "expenses" && (
@@ -356,9 +448,12 @@ export default function GroupDetails() {
           <ul className="member-list">
             {pendingInvitations.map((inv) => (
               <li key={inv.id} className="member-row">
-                <Avatar name={inv.invitee_email?.charAt(0).toUpperCase()} />
+                <Avatar name={inv.invitee_name || `@${inv.invitee_username}`} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="text-semibold">{inv.invitee_email}</div>
+                  <div className="text-semibold">
+                    {inv.invitee_name || inv.invitee_username || "User"}
+                    <span className="text-muted"> · @{inv.invitee_username}</span>
+                  </div>
                   <div className="flex items-center gap-1 text-muted text-sm">
                     <Clock aria-hidden="true" style={{ width: 12, height: 12 }} />
                     <span>

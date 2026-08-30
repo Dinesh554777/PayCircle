@@ -1,4 +1,8 @@
-"""Group invitation service — send, accept, decline, resend."""
+"""Group invitation service — in-app, username-based send/accept/decline/resend.
+
+Invitations are delivered as in-app notifications (no email/SMTP in this
+workflow). An invite must target an existing PayCircle user by username.
+"""
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -10,12 +14,20 @@ from app.models.group_invitation import GroupInvitation
 from app.models.group_member import GroupMember
 from app.models.user import User
 from app.services.activity_service import ActivityService, ActivityType
-from app.services.email_service import send_invitation_email
 from app.services.notification_service import NotificationService, NotificationType
 
 logger = logging.getLogger("paycircle.invitations")
 
 INVITATION_EXPIRY_DAYS = 7
+
+
+def _now(compared_with=None):
+    """Return an aware UTC now, matching the tz-awareness of the value it is
+    compared against (SQLite stores datetimes as naive, Postgres as aware)."""
+    now = datetime.now(timezone.utc)
+    if compared_with is not None and compared_with.tzinfo is None:
+        now = now.replace(tzinfo=None)
+    return now
 
 
 class InvitationService:
@@ -26,49 +38,49 @@ class InvitationService:
 
     # ---------------------------------------------------------------- send
 
-    def send_invitation(self, group_id: int, email: str, actor: User) -> GroupInvitation:
-        email = email.strip().lower()
+    def send_invitation(self, group_id: int, username: str, actor: User) -> GroupInvitation:
+        username = username.strip().lower()
         group = self._require_group(group_id)
         self._require_membership(group_id, actor.id)
-        self._check_not_already_member(group_id, email)
 
-        existing = self._find_pending(group_id, email)
+        invitee = self.db.query(User).filter(User.username == username).first()
+        if invitee is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No PayCircle user with the username '{username}' was found",
+            )
+        if invitee.id == actor.id:
+            raise HTTPException(status_code=400, detail="You cannot invite yourself")
+        self._check_not_already_member(group_id, invitee.id)
+
+        existing = self._find_pending(group_id, invitee.id)
         if existing:
-            return self._resend(existing, actor)
+            raise HTTPException(
+                status_code=409,
+                detail="Invitation already pending for this user",
+            )
 
-        invitee_user = self.db.query(User).filter(User.email == email).first()
-        token = self._generate_token()
         expires_at = datetime.now(timezone.utc) + timedelta(days=INVITATION_EXPIRY_DAYS)
-
         invitation = GroupInvitation(
             group_id=group_id,
             invited_by=actor.id,
-            invitee_email=email,
-            invitee_user_id=invitee_user.id if invitee_user else None,
+            invitee_email=invitee.email,
+            invitee_user_id=invitee.id,
             status="pending",
-            token=token,
+            token=self._generate_token(),
             expires_at=expires_at,
         )
         self.db.add(invitation)
         self.db.flush()
 
-        email_ok = send_invitation_email(email, actor.name, group.name, token)
-        if not email_ok:
-            logger.warning("Failed to send invitation email to %s for group '%s'", email, group.name)
-            raise HTTPException(
-                status_code=502,
-                detail="Invitation created but the email could not be sent. Check SMTP configuration.",
-            )
-
-        if invitee_user:
-            self.notifications.create_notification(
-                invitee_user.id,
-                NotificationType.GROUP_ACTIVITY,
-                "New group invitation",
-                f"{actor.name} invited you to join '{group.name}'.",
-                group_id=group_id,
-                related_id=invitation.id,
-            )
+        self.notifications.create_notification(
+            invitee.id,
+            NotificationType.GROUP_INVITATION,
+            "New group invitation",
+            f"{actor.name} invited you to join '{group.name}'.",
+            group_id=group_id,
+            related_id=invitation.id,
+        )
 
         self.db.commit()
         self.db.refresh(invitation)
@@ -77,31 +89,19 @@ class InvitationService:
     # ---------------------------------------------------------------- resend
 
     def _resend(self, invitation: GroupInvitation, actor: User) -> GroupInvitation:
-        import secrets
-
         group = self.db.get(Group, invitation.group_id)
-        invitation.token = secrets.token_hex(32)
+        invitation.token = self._generate_token()
         invitation.expires_at = datetime.now(timezone.utc) + timedelta(days=INVITATION_EXPIRY_DAYS)
         invitation.status = "pending"
         invitation.accepted_at = None
         invitation.declined_at = None
         self.db.flush()
 
-        email_ok = send_invitation_email(
-            invitation.invitee_email, actor.name, group.name, invitation.token
-        )
-        if not email_ok:
-            logger.warning("Failed to resend invitation email to %s", invitation.invitee_email)
-            raise HTTPException(
-                status_code=502,
-                detail="Invitation updated but the email could not be sent. Check SMTP configuration.",
-            )
-
         if invitation.invitee_user_id:
             self.notifications.create_notification(
                 invitation.invitee_user_id,
-                NotificationType.GROUP_ACTIVITY,
-                "Invitation resent",
+                NotificationType.GROUP_INVITATION,
+                "Invitation updated",
                 f"{actor.name} re-invited you to join '{group.name}'.",
                 group_id=invitation.group_id,
                 related_id=invitation.id,
@@ -125,8 +125,8 @@ class InvitationService:
 
     # ---------------------------------------------------------------- accept
 
-    def accept_invitation(self, token: str, user: User) -> dict:
-        invitation = self._find_by_token(token)
+    def accept_invitation(self, invitation_id: int, user: User) -> dict:
+        invitation = self._find_by_pk(invitation_id)
         self._validate_acceptable(invitation, user)
 
         now = datetime.now(timezone.utc)
@@ -146,28 +146,28 @@ class InvitationService:
             related_id=member.id,
         )
 
+        self._mark_invitation_notification_read(user.id, invitation.id)
         self.db.commit()
         self.db.refresh(member)
         return {"group_name": group.name, "group_id": group.id}
 
     # ---------------------------------------------------------------- decline
 
-    def decline_invitation(self, token: str, user: User) -> dict:
-        invitation = self._find_by_token(token)
-
-        if invitation.status != "pending":
-            raise HTTPException(status_code=400, detail=f"Invitation is already {invitation.status}")
+    def decline_invitation(self, invitation_id: int, user: User) -> dict:
+        invitation = self._find_by_pk(invitation_id)
 
         if invitation.invitee_user_id is not None and invitation.invitee_user_id != user.id:
             raise HTTPException(status_code=403, detail="This invitation is not for you")
 
-        if datetime.now(timezone.utc) > invitation.expires_at:
+        if invitation.status != "pending":
+            raise HTTPException(status_code=400, detail=f"Invitation is already {invitation.status}")
+
+        if _now(invitation.expires_at) > invitation.expires_at:
             raise HTTPException(status_code=400, detail="This invitation has expired")
 
         invitation.status = "declined"
         invitation.declined_at = datetime.now(timezone.utc)
-        if invitation.invitee_user_id is None:
-            invitation.invitee_user_id = user.id
+        self._mark_invitation_notification_read(user.id, invitation.id)
 
         group = self.db.get(Group, invitation.group_id)
         self.db.commit()
@@ -180,7 +180,7 @@ class InvitationService:
         invitations = (
             self.db.query(GroupInvitation)
             .filter(
-                GroupInvitation.invitee_email == user.email,
+                GroupInvitation.invitee_user_id == user.id,
                 GroupInvitation.status == "pending",
                 GroupInvitation.expires_at > now,
             )
@@ -209,7 +209,6 @@ class InvitationService:
             "group_id": invitation.group_id,
             "group_name": group.name if group else "Unknown",
             "inviter_name": inviter.name if inviter else "Someone",
-            "invitee_email": invitation.invitee_email,
             "status": invitation.status,
             "expires_at": invitation.expires_at,
         }
@@ -244,29 +243,33 @@ class InvitationService:
         if exists is None:
             raise HTTPException(status_code=403, detail="You are not a member of this group")
 
-    def _check_not_already_member(self, group_id: int, email: str) -> None:
-        user = self.db.query(User).filter(User.email == email).first()
-        if user:
-            exists = (
-                self.db.query(GroupMember)
-                .filter(GroupMember.group_id == group_id, GroupMember.user_id == user.id)
-                .first()
+    def _check_not_already_member(self, group_id: int, user_id: int) -> None:
+        exists = (
+            self.db.query(GroupMember)
+            .filter(GroupMember.group_id == group_id, GroupMember.user_id == user_id)
+            .first()
+        )
+        if exists:
+            raise HTTPException(
+                status_code=409, detail="This user is already a member of this group"
             )
-            if exists:
-                raise HTTPException(
-                    status_code=409, detail="This user is already a member of this group"
-                )
 
-    def _find_pending(self, group_id: int, email: str) -> GroupInvitation | None:
+    def _find_pending(self, group_id: int, user_id: int) -> GroupInvitation | None:
         return (
             self.db.query(GroupInvitation)
             .filter(
                 GroupInvitation.group_id == group_id,
-                GroupInvitation.invitee_email == email,
+                GroupInvitation.invitee_user_id == user_id,
                 GroupInvitation.status == "pending",
             )
             .first()
         )
+
+    def _find_by_pk(self, invitation_id: int) -> GroupInvitation:
+        invitation = self.db.get(GroupInvitation, invitation_id)
+        if invitation is None:
+            raise HTTPException(status_code=404, detail="Invitation not found")
+        return invitation
 
     def _find_by_token(self, token: str) -> GroupInvitation:
         invitation = (
@@ -277,19 +280,16 @@ class InvitationService:
         return invitation
 
     def _validate_acceptable(self, invitation: GroupInvitation, user: User) -> None:
+        if invitation.invitee_user_id is not None and invitation.invitee_user_id != user.id:
+            raise HTTPException(status_code=403, detail="This invitation is not for you")
         if invitation.status == "accepted":
             raise HTTPException(status_code=400, detail="Invitation already accepted")
         if invitation.status in ("declined", "cancelled"):
             raise HTTPException(status_code=400, detail=f"Invitation has been {invitation.status}")
-        if datetime.now(timezone.utc) > invitation.expires_at:
+        if _now(invitation.expires_at) > invitation.expires_at:
             invitation.status = "expired"
             self.db.commit()
             raise HTTPException(status_code=400, detail="This invitation has expired")
-        if invitation.invitee_email.strip().lower() != user.email.strip().lower():
-            raise HTTPException(
-                status_code=403,
-                detail="This invitation was sent to a different email address",
-            )
         already_member = (
             self.db.query(GroupMember)
             .filter(
@@ -303,9 +303,25 @@ class InvitationService:
             self.db.commit()
             raise HTTPException(status_code=400, detail="You are already a member of this group")
 
+    def _mark_invitation_notification_read(self, user_id: int, invitation_id: int) -> None:
+        from app.models.notification import Notification
+
+        self.db.query(Notification).filter(
+            Notification.user_id == user_id,
+            Notification.type == NotificationType.GROUP_INVITATION,
+            Notification.related_id == invitation_id,
+            Notification.is_read.is_(False),
+        ).update(
+            {
+                Notification.is_read: True,
+                Notification.read_at: datetime.now(timezone.utc),
+            }
+        )
+
     def _enrich(self, inv: GroupInvitation) -> dict:
         group = self.db.get(Group, inv.group_id)
         inviter = self.db.get(User, inv.invited_by)
+        invitee = self.db.get(User, inv.invitee_user_id) if inv.invitee_user_id else None
         member_count = (
             self.db.query(GroupMember)
             .filter(GroupMember.group_id == inv.group_id)
@@ -315,8 +331,9 @@ class InvitationService:
             "id": inv.id,
             "group_id": inv.group_id,
             "invited_by": inv.invited_by,
-            "invitee_email": inv.invitee_email,
             "invitee_user_id": inv.invitee_user_id,
+            "invitee_username": invitee.username if invitee else "",
+            "invitee_name": invitee.name if invitee else "",
             "status": inv.status,
             "token": inv.token,
             "expires_at": inv.expires_at,

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, CheckCheck } from "lucide-react";
 import Button from "../components/common/Button";
 import Badge from "../components/common/Badge";
@@ -10,6 +11,7 @@ import { apiRequest } from "../api/client";
 import { formatDateTime } from "../utils/format";
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,14 @@ export default function Notifications() {
         );
       })
       .catch(() => {});
+  }
+
+  function openNotification(item) {
+    if (item.type === "group_invitation") {
+      navigate("/invitations");
+      return;
+    }
+    markRead(item);
   }
 
   function markAllRead() {
@@ -84,11 +94,11 @@ export default function Notifications() {
               key={item.id}
               role={item.is_read ? undefined : "button"}
               tabIndex={item.is_read ? undefined : 0}
-              onClick={() => markRead(item)}
+              onClick={() => openNotification(item)}
               onKeyDown={(event) => {
                 if (!item.is_read && (event.key === "Enter" || event.key === " ")) {
                   event.preventDefault();
-                  markRead(item);
+                  openNotification(item);
                 }
               }}
               className={`notification-row${item.is_read ? "" : " notification-row-unread"}`}

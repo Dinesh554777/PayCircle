@@ -29,9 +29,12 @@ class EmailService:
     ) -> bool:
         """Send an email. Returns True on success, False on failure.
 
-        Uses the Resend HTTPS API when RESEND_API_KEY is configured (required on
-        Render, which blocks outbound SMTP). Falls back to SMTP otherwise.
+        Transport priority: Amazon SES (real emails, no domain) > Resend > SMTP.
+        Render blocks outbound SMTP, so HTTPS providers are required there.
         """
+        if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+            return EmailService._send_via_ses(to, subject, html_body, text_body)
+
         if settings.RESEND_API_KEY:
             return EmailService._send_via_resend(to, subject, html_body, text_body)
 
@@ -120,6 +123,107 @@ class EmailService:
             return True
         except httpx.RequestError:
             logger.exception("Failed to reach Resend API")
+            return False
+
+    # ── Amazon SES (HTTPS API — real emails, free tier, no domain) ─────
+
+    @staticmethod
+    def _ses_auth_header() -> str:
+        import base64
+        import hashlib
+        import hmac
+        from datetime import datetime, timezone
+
+        access_key = settings.AWS_ACCESS_KEY_ID
+        secret_key = settings.AWS_SECRET_ACCESS_KEY
+        region = settings.AWS_REGION
+        service = "ses"
+        host = f"email.{region}.amazonaws.com"
+        now = datetime.now(timezone.utc)
+        amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+        date_stamp = now.strftime("%Y%m%d")
+
+        payload_hash = hashlib.sha256(b"").hexdigest()
+        canonical_headers = (
+            f"content-type:application/x-www-form-urlencoded; charset=utf-8\n"
+            f"host:{host}\n"
+            f"x-amz-date:{amz_date}\n"
+        )
+        signed_headers = "content-type;host;x-amz-date"
+        canonical_request = (
+            "POST\n"
+            "/\n"
+            "\n"
+            f"{canonical_headers}\n"
+            f"{signed_headers}\n"
+            f"{payload_hash}"
+        )
+
+        scope = f"{date_stamp}/{region}/{service}/aws4_request"
+        string_to_sign = (
+            f"AWS4-HMAC-SHA256\n{amz_date}\n{scope}\n"
+            + hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()
+        )
+
+        def sign(key, msg):
+            return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+
+        k_date = sign(("AWS4" + secret_key).encode("utf-8"), date_stamp)
+        k_region = sign(k_date, region)
+        k_service = sign(k_region, service)
+        k_signing = sign(k_service, "aws4_request")
+        signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+
+        return (
+            f"AWS4-HMAC-SHA256 Credential={access_key}/{scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}"
+        )
+
+    @staticmethod
+    def _send_via_ses(
+        to: str,
+        subject: str,
+        html_body: str,
+        text_body: str,
+    ) -> bool:
+        email_from = settings.EMAIL_FROM
+        if not email_from:
+            logger.warning(
+                "EMAIL_FROM not set — Amazon SES requires a verified sender address"
+            )
+            return False
+
+        recipients = [to] if isinstance(to, str) else list(to)
+        data = {
+            "Action": "SendEmail",
+            "Source": email_from,
+            "Destination.ToAddresses.member.1": recipients[0],
+            "Message.Subject.Data": subject,
+            "Message.Body.Html.Data": html_body,
+            "Message.Body.Text.Data": text_body or html_body,
+            "Version": "2010-12-01",
+        }
+
+        try:
+            with httpx.Client(timeout=30) as client:
+                resp = client.post(
+                    f"https://email.{settings.AWS_REGION}.amazonaws.com/",
+                    headers={
+                        "Authorization": EmailService._ses_auth_header(),
+                        "X-Amz-Date": __import__("datetime").datetime.now(
+                            __import__("datetime").timezone.utc
+                        ).strftime("%Y%m%dT%H%M%SZ"),
+                        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+                    },
+                    data=data,
+                )
+            if resp.status_code != 200:
+                logger.error("SES send failed (%s): %s", resp.status_code, resp.text[:500])
+                return False
+            logger.info("Email sent via SES to %s — subject: %s", to, subject)
+            return True
+        except httpx.RequestError:
+            logger.exception("Failed to reach Amazon SES")
             return False
 
     # ── group invitation ────────────────────────────────────────────────
@@ -289,6 +393,14 @@ class EmailService:
     @staticmethod
     def test_connection() -> dict:
         """Test the configured email transport without sending. Returns status dict."""
+        if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+            return {
+                "ok": True,
+                "transport": "ses",
+                "region": settings.AWS_REGION,
+                "from": settings.EMAIL_FROM or "NOT SET",
+            }
+
         if settings.RESEND_API_KEY:
             try:
                 with httpx.Client(timeout=20) as client:

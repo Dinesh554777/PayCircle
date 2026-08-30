@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class InvitationCreate(BaseModel):
-    email: EmailStr
+    username: str = Field(min_length=1, max_length=50)
 
 
 class InvitationRead(BaseModel):
@@ -13,12 +13,9 @@ class InvitationRead(BaseModel):
     id: int
     group_id: int
     invited_by: int
-    invitee_email: str
     invitee_user_id: int | None = None
     status: str
     expires_at: datetime
-    accepted_at: datetime | None = None
-    declined_at: datetime | None = None
     created_at: datetime
 
 
@@ -26,6 +23,8 @@ class InvitationWithGroup(InvitationRead):
     token: str = ""
     group_name: str = ""
     inviter_name: str = ""
+    invitee_username: str = ""
+    invitee_name: str = ""
     member_count: int = 0
 
 
@@ -33,7 +32,6 @@ class InvitationTokenOut(BaseModel):
     token: str
     group_name: str
     inviter_name: str
-    invitee_email: str
     status: str
     expires_at: datetime
     group_id: int

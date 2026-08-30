@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     RESEND_FROM: str = ""  # Verified sender, e.g. PayCircle <noreply@yourdomain.com>
 
+    AWS_ACCESS_KEY_ID: str = ""  # Amazon SES (real emails, free tier, no domain)
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-1"
+
     @property
     def effective_ai_api_key(self) -> str:
         return self.GROQ_API_KEY or self.AI_API_KEY

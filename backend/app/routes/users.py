@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from sqlalchemy import exists
@@ -30,6 +30,26 @@ def list_users(
 @router.get("/me", response_model=UserRead)
 def get_current_profile(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.get("/search", response_model=list[UserRead])
+def search_users(
+    q: str = Query(default="", min_length=1, max_length=50),
+    group_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Search users by username for inviting; optionally exclude current group members."""
+    exclude_ids = {current_user.id}
+    if group_id is not None:
+        member_ids = (
+            db.query(GroupMember.user_id).filter(GroupMember.group_id == group_id).all()
+        )
+        exclude_ids.update([row[0] for row in member_ids])
+    users = UserService(db).search_by_username(q, exclude_user_id=current_user.id)
+    if group_id is not None:
+        users = [u for u in users if u.id not in exclude_ids]
+    return users
 
 
 @router.put("/me", response_model=UserRead)

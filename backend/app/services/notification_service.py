@@ -16,6 +16,7 @@ class NotificationType:
     SETTLEMENT_COMPLETED = "settlement_completed"
     REMINDER = "reminder"
     GROUP_ACTIVITY = "group_activity"
+    GROUP_INVITATION = "group_invitation"
 
 
 class NotificationService(BaseService[Notification]):

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { UserRound, Volume2, VolumeOff } from "lucide-react";
+import { UserRound, AtSign, Volume2, VolumeOff } from "lucide-react";
 import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
@@ -13,6 +13,7 @@ import { playTestSound } from "../utils/notificationSound";
 export default function Profile() {
   const { user, updateProfile } = useAuth();
   const [name, setName] = useState(user?.name || "");
+  const [username, setUsername] = useState(user?.username || "");
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +24,11 @@ export default function Profile() {
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
-    const payload = { name, email };
+    if (!/^[a-zA-Z0-9_.-]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, dots, underscores and dashes");
+      return;
+    }
+    const payload = { name, username, email };
     if (password) payload.password = password;
     setSubmitting(true);
     try {
@@ -50,6 +55,7 @@ export default function Profile() {
             <Avatar name={user?.name} avatar_url={user?.avatar_url} size="xl" />
             <div>
               <div className="text-lg text-bold">{user?.name}</div>
+              <div className="text-secondary text-sm">@{user?.username}</div>
               <div className="text-secondary text-sm">{user?.email}</div>
             </div>
             <div className="flex gap-2 justify-center">
@@ -68,6 +74,15 @@ export default function Profile() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
+            />
+            <Input
+              label="Username"
+              name="username"
+              icon={AtSign}
+              required
+              value={username}
+              hint="How friends find and invite you to a group."
+              onChange={(e) => setUsername(e.target.value)}
             />
             <Input
               label="Email"

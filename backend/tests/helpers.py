@@ -11,8 +11,10 @@ from app.models.user import User
 
 def make_user(db, name="Alice", email=None, admin=False) -> User:
     email = email or f"{name.lower().replace(' ', '.')}@example.com"
+    username = email.split("@")[0]
     user = User(
         name=name,
+        username=username,
         email=email,
         password_hash="not-a-real-hash",
         is_admin=admin,

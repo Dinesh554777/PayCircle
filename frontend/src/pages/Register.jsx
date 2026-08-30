@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { UserRound, Mail, Lock } from "lucide-react";
+import { UserRound, AtSign, Mail, Lock } from "lucide-react";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
 import AuthShell from "../components/auth/AuthShell";
@@ -12,6 +12,7 @@ export default function Register() {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,9 +26,13 @@ export default function Register() {
       setError("Passwords do not match");
       return;
     }
+    if (!/^[a-zA-Z0-9_.-]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, dots, underscores and dashes");
+      return;
+    }
     setSubmitting(true);
     try {
-      await register(name, email, password);
+      await register(name, username, email, password);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message);
@@ -55,6 +60,17 @@ export default function Register() {
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
+        />
+        <Input
+          label="Username"
+          name="username"
+          icon={AtSign}
+          required
+          autoComplete="username"
+          placeholder="e.g. alex.jones"
+          hint="This is how friends find you to invite you to a group."
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
         />
         <Input
           label="Email"

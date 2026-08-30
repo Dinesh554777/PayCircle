@@ -28,7 +28,7 @@ def send_invitation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    inv = InvitationService(db).send_invitation(group_id, data.email, current_user)
+    inv = InvitationService(db).send_invitation(group_id, data.username, current_user)
     return InvitationService(db)._enrich(inv)
 
 
@@ -57,23 +57,23 @@ def get_invitation_by_token(
     return InvitationService(db).get_by_token(token)
 
 
-@router.post("/invitations/{token}/accept")
+@router.post("/invitations/{invitation_id}/accept")
 def accept_invitation(
-    token: str,
+    invitation_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = InvitationService(db).accept_invitation(token, current_user)
+    result = InvitationService(db).accept_invitation(invitation_id, current_user)
     return {"message": f"You joined {result['group_name']} successfully.", **result}
 
 
-@router.post("/invitations/{token}/decline")
+@router.post("/invitations/{invitation_id}/decline")
 def decline_invitation(
-    token: str,
+    invitation_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = InvitationService(db).decline_invitation(token, current_user)
+    result = InvitationService(db).decline_invitation(invitation_id, current_user)
     return {"message": "Invitation declined.", **result}
 
 
