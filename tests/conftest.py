@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 import app.models  # noqa: F401  (register all models on Base.metadata)
 from app.core.database import Base, get_db
 from app.main import app
-from ai.categorizer import CategorizationResult
+from app.ai.categorization.categorizer import CategorizationResult
 import app.services.expense_service as expense_service_module
 
 test_engine = create_engine(

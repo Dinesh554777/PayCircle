@@ -1,13 +1,13 @@
 import app.services.chatbot_service as chatbot_service_module
 from decimal import Decimal
 
-from ai.chatbot import NO_DATA_MESSAGE, UNRELATED_MESSAGE
+from app.ai.chatbot.chatbot import NO_DATA_MESSAGE, UNRELATED_MESSAGE
 
 
 def _register(client, name, email, password="secret123"):
     response = client.post(
         "/api/auth/register",
-        json={"name": name, "email": email, "password": password},
+        json={"name": name, "email": email, "password": password, "username": email.split("@")[0]},
     )
     assert response.status_code == 201
     data = response.json()

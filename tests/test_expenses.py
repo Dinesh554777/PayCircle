@@ -1,7 +1,7 @@
 def _register(client, name, email, password="secret123"):
     response = client.post(
         "/api/auth/register",
-        json={"name": name, "email": email, "password": password},
+        json={"name": name, "email": email, "password": password, "username": email.split("@")[0]},
     )
     assert response.status_code == 201
     data = response.json()

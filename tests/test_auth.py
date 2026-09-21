@@ -1,7 +1,7 @@
 def _register(client, name="Alice", email="alice@example.com", password="secret123"):
     return client.post(
         "/api/auth/register",
-        json={"name": name, "email": email, "password": password},
+        json={"name": name, "email": email, "password": password, "username": email.split("@")[0]},
     )
 
 
