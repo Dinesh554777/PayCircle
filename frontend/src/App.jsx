@@ -1,5 +1,7 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import LoadingSpinner from "./components/common/LoadingSpinner";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -19,20 +21,31 @@ import Invitations from "./pages/Invitations";
 import AuthCallback from "./pages/AuthCallback";
 import Layout from "./components/Layout";
 
+function AuthGateLoader() {
+  return (
+    <div className="flex items-center justify-center" style={{ minHeight: "100vh" }}>
+      <LoadingSpinner size="lg" label="Loading your session..." />
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth();
+  const { status, isAuthenticated } = useAuth();
+  if (status === "loading") return <AuthGateLoader />;
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 }
 
 function AdminRoute({ children }) {
-  const { isAuthenticated, user } = useAuth();
+  const { status, isAuthenticated, user } = useAuth();
+  if (status === "loading") return <AuthGateLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (!user?.is_admin) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
 function PublicOnly({ children }) {
-  const { isAuthenticated } = useAuth();
+  const { status, isAuthenticated } = useAuth();
+  if (status === "loading") return <AuthGateLoader />;
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
 }
 
@@ -92,10 +105,19 @@ function AppRoutes() {
   );
 }
 
+function AppContent() {
+  const location = useLocation();
+  return (
+    <ErrorBoundary resetKey={location.pathname}>
+      <AppRoutes />
+    </ErrorBoundary>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <AppContent />
     </AuthProvider>
   );
 }

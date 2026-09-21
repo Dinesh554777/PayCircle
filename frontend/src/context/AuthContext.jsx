@@ -1,27 +1,100 @@
-import { createContext, useContext, useMemo, useState } from "react";
-import { apiRequest, setToken } from "../api/client";
-
-const USER_KEY = "paycircle_user";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { apiRequest, setAuthExpiredHandler, resetAuthExpiredFlag } from "../api/client";
+import {
+  setToken,
+  getToken,
+  getStoredUser,
+  setStoredUser,
+  isTokenExpired,
+  clearAuthStorage,
+} from "../utils/storage";
 
 const AuthContext = createContext(null);
 
-function readStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem(USER_KEY));
-  } catch {
-    return null;
-  }
-}
-
 export function AuthProvider({ children }) {
-  const [token, setTokenState] = useState(() => localStorage.getItem("paycircle_token"));
-  const [user, setUser] = useState(readStoredUser);
+  const [status, setStatus] = useState("loading");
+  const [token, setTokenState] = useState(() => getToken());
+  const [user, setUser] = useState(() => getStoredUser());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restore() {
+      const storedToken = getToken();
+      const storedUser = getStoredUser();
+
+      if (!storedToken || isTokenExpired(storedToken)) {
+        clearAuthStorage();
+        setTokenState(null);
+        setUser(null);
+        setStatus("unauthenticated");
+        return;
+      }
+
+      try {
+        const fresh = await apiRequest("/users/me", { auth: true });
+        if (cancelled) return;
+        setUser(fresh);
+        setStoredUser(fresh);
+        setStatus("authenticated");
+      } catch (error) {
+        if (cancelled) return;
+
+        if (error && error.type === "auth") {
+          // Session rejected by the server; the 401 handler already cleared storage.
+          setTokenState(null);
+          setUser(null);
+          setStatus("unauthenticated");
+        } else if (
+          error &&
+          (error.type === "network" ||
+            error.type === "timeout" ||
+            (error.type === "http" && error.status >= 500))
+        ) {
+          // Backend unreachable or cold-starting. Restore the cached profile
+          // optimistically so the app can render; idempotent requests retry and
+          // recover once the backend is awake again.
+          if (storedUser) {
+            setUser(storedUser);
+            setStatus("authenticated");
+          } else {
+            clearAuthStorage();
+            setTokenState(null);
+            setUser(null);
+            setStatus("unauthenticated");
+          }
+        } else {
+          // Any other failure during validation -> invalid session.
+          clearAuthStorage();
+          setTokenState(null);
+          setUser(null);
+          setStatus("unauthenticated");
+        }
+      }
+    }
+
+    setAuthExpiredHandler(() => {
+      clearAuthStorage();
+      setTokenState(null);
+      setUser(null);
+      setStatus("unauthenticated");
+    });
+
+    restore();
+
+    return () => {
+      cancelled = true;
+      setAuthExpiredHandler(null);
+    };
+  }, []);
 
   function storeSession(accessToken, authUser) {
     setToken(accessToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(authUser));
+    setStoredUser(authUser);
     setTokenState(accessToken);
     setUser(authUser);
+    resetAuthExpiredFlag();
+    setStatus("authenticated");
   }
 
   async function login(email, password) {
@@ -48,16 +121,18 @@ export function AuthProvider({ children }) {
       body: payload,
       auth: true,
     });
-    localStorage.setItem(USER_KEY, JSON.stringify(updated));
+    setStoredUser(updated);
     setUser(updated);
     return updated;
   }
 
   function logout() {
+    clearAuthStorage();
     setToken(null);
-    localStorage.removeItem(USER_KEY);
     setTokenState(null);
     setUser(null);
+    resetAuthExpiredFlag();
+    setStatus("unauthenticated");
   }
 
   async function loginWithGoogle(payload) {
@@ -73,14 +148,16 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       token,
-      isAuthenticated: Boolean(token),
+      status,
+      isReady: status !== "loading",
+      isAuthenticated: status === "authenticated",
       login,
       register,
       loginWithGoogle,
       updateProfile,
       logout,
     }),
-    [user, token]
+    [user, token, status]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
