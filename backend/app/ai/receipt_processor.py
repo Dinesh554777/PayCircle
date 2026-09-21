@@ -136,32 +136,10 @@ def _prepare_image(image_bytes: bytes, media_type: str) -> tuple[bytes, str]:
 
 def _ocr_image_local(image_bytes: bytes, media_type: str) -> str | None:
     """Run fully-offline OCR (RapidOCR) on a receipt image.
-
-    Returns the raw recognized text, or None if local OCR is unavailable or
-    recognizes nothing usable. Local OCR has no rate limits, so it gives a
-    reliable path even when the hosted vision provider is busy. The OCR model
-    is loaded once and reused across calls.
+    
+    Disabled for Render free tier deployment to prevent Out-Of-Memory (OOM) crashes.
     """
-    try:
-        import io
-
-        from PIL import Image
-        from rapidocr_onnxruntime import RapidOCR
-
-        engine = _get_local_ocr_engine()
-        image = Image.open(io.BytesIO(image_bytes))
-        if image.mode not in ("RGB", "L"):
-            image = image.convert("RGB")
-        buffer = io.BytesIO()
-        image.save(buffer, format="PNG")
-        result, _ = engine(buffer.getvalue())
-        if not result:
-            return None
-        lines = [line[1] for line in result if line and isinstance(line[1], str)]
-        text = "\n".join(lines).strip()
-        return text or None
-    except Exception:
-        return None
+    return None
 
 
 _LOCAL_OCR_ENGINE = None
