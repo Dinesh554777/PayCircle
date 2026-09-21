@@ -171,7 +171,7 @@ export default function ExpenseForm() {
     const payments = payerSelected
       .map((userId) => ({
         user_id: Number(userId),
-        amount: String(Number(payerAmounts[userId]) || 0),
+        amount: Number(payerAmounts[userId]) || 0,
       }))
       .filter((p) => p.amount > 0);
     const primaryPayer = payments.reduce(
@@ -181,12 +181,12 @@ export default function ExpenseForm() {
     const base = {
       title,
       description: description || null,
-      amount: String(amountNum),
+      amount: amountNum.toFixed(2),
       category: category || null,
       paid_by: primaryPayer.user_id,
       expense_date: expenseDate ? new Date(expenseDate).toISOString() : null,
       split_method: splitMethod,
-      payments,
+      payments: payments.map(p => ({ user_id: p.user_id, amount: p.amount.toFixed(2) })),
     };
     if (splitMethod === "equal") {
       return { ...base, participants: selected.map(Number) };
@@ -196,14 +196,14 @@ export default function ExpenseForm() {
         ...base,
         exact_amounts: Object.entries(exactAmounts)
           .filter(([, v]) => Number(v) > 0)
-          .map(([userId, v]) => ({ user_id: Number(userId), amount: String(v) })),
+          .map(([userId, v]) => ({ user_id: Number(userId), amount: Number(v).toFixed(2) })),
       };
     }
     return {
       ...base,
       percentages: Object.entries(percentages)
         .filter(([, v]) => Number(v) > 0)
-        .map(([userId, v]) => ({ user_id: Number(userId), percentage: String(v) })),
+        .map(([userId, v]) => ({ user_id: Number(userId), percentage: Number(v).toFixed(2) })),
     };
   }
 
