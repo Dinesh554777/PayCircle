@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = ""  # Public frontend base URL used in email links; defaults to first CORS origin
     AI_API_KEY: str = ""
     AI_MODEL: str = "llama-3.3-70b-versatile"
-    AI_VISION_MODEL: str = "llama-3.2-11b-vision-preview"
+    AI_VISION_MODEL: str = "qwen/qwen3.8-27b"
 
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
