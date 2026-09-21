@@ -23,4 +23,8 @@ def test_database_check_endpoint(client):
         "settlements",
         "transactions",
         "notifications",
+        "expense_payments",
+        "group_invitations",
+        "activities",
+        "payments",
     }

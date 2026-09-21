@@ -12,7 +12,8 @@ from app.models import (
 
 
 def _make_user(db_session, name, email):
-    user = User(name=name, email=email, password_hash="not-hashed-yet")
+    username = email.split("@")[0].replace(".", "_")
+    user = User(name=name, username=username, email=email, password_hash="not-hashed-yet")
     db_session.add(user)
     db_session.flush()
     return user
