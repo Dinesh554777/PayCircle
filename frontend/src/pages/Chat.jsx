@@ -18,8 +18,8 @@ export default function Chat() {
   const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState([
     {
-      role: "ai",
-      text: "Hi! I'm PayCircle's smart assistant. I can answer questions about your spending, top categories, recent expenses, who you owe, and how to settle up efficiently — using only your own data.",
+      role: "assistant",
+      content: "Hi! I'm PayCircle's smart assistant. I can answer questions about your spending, top categories, recent expenses, who you owe, and how to settle up efficiently — using only your own data.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -46,11 +46,15 @@ export default function Chat() {
     if (!message || sending) return;
     setInput("");
     setError("");
-    setMessages((prev) => [...prev, { role: "user", text: message }]);
+    const history = messages
+      .filter((_, i) => i !== 0) // exclude initial greeting
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    setMessages((prev) => [...prev, { role: "user", content: message }]);
     setSending(true);
-    apiRequest("/ai/agent", { method: "POST", body: { message }, auth: true })
+    apiRequest("/ai/agent", { method: "POST", body: { message, history }, auth: true })
       .then((data) => {
-        setMessages((prev) => [...prev, { role: "ai", text: data.answer }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: data.answer || data.message, action: data.action, type: data.type || "message" }]);
       })
       .catch((err) => setError(err.message))
       .finally(() => setSending(false));
@@ -83,7 +87,19 @@ export default function Chat() {
                   </span>
                 )}
                 <div className={`chat-bubble${isUser ? " chat-bubble-user" : " chat-bubble-ai"}`}>
-                  {message.text}
+                  {message.content}
+                  {message.type === "confirmation_required" && message.action && (
+                    <div className="mt-3 p-3 bg-white rounded shadow-sm text-dark">
+                      <div className="font-medium mb-2">{message.action.name.replace(/_/g, " ")}</div>
+                      <pre className="text-xs text-secondary mb-3 bg-light p-2 rounded overflow-x-auto">
+                        {JSON.stringify(message.action.payload, null, 2)}
+                      </pre>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1">Cancel</Button>
+                        <Button variant="primary" size="sm" className="flex-1">Confirm</Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
