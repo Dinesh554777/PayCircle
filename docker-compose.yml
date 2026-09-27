@@ -10,6 +10,7 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U paycircle"]
       interval: 5s
@@ -24,6 +25,7 @@ services:
       - ./backend/.env
     environment:
       DATABASE_URL: postgresql://paycircle:paycircle@db:5432/paycircle
+    restart: always
     ports:
       - "8000:8000"
     depends_on:
