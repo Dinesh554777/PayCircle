@@ -136,6 +136,24 @@ class ExpenseAgent:
                 description=TOOL_DESCRIPTIONS["get_settlement_suggestions"],
                 handler=self._tool_get_settlement_suggestions,
             ),
+            "create_expense": Tool(
+                name="create_expense",
+                description="Use this when the user wants to add a new expense. DO NOT calculate participants yourself, just pass the parameters. The backend will ask for confirmation.",
+                handler=lambda u, **kwargs: {
+                    "type": "confirmation_required",
+                    "message": "You are about to create an expense. Please confirm the details.",
+                    "action": {"name": "create_expense", "payload": kwargs}
+                }
+            ),
+            "create_cash_settlement": Tool(
+                name="create_cash_settlement",
+                description="Use this when the user says they paid someone in cash. The backend will ask for confirmation before requesting receiver approval.",
+                handler=lambda u, **kwargs: {
+                    "type": "confirmation_required",
+                    "message": "I can record a cash settlement request. The receiver will need to confirm.",
+                    "action": {"name": "create_cash_settlement", "payload": kwargs}
+                }
+            ),
         }
 
     @property
@@ -464,6 +482,8 @@ class ExpenseAgent:
                     t_args = json.loads(func["arguments"] or "{}")
                     if t_name in self._tools:
                         t_res = self.run_tool(t_name, user, group_id=group_id, **t_args)
+                        if isinstance(t_res, dict) and t_res.get("type") == "confirmation_required":
+                            return t_res
                         messages.append(msg)
                         messages.append({"role": "tool", "tool_call_id": tc["id"], "name": t_name, "content": json.dumps(t_res, default=str)})
                 

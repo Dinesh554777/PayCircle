@@ -65,6 +65,19 @@ export default function Chat() {
     send();
   }
 
+  function handleConfirm(action) {
+    if (sending) return;
+    setError("");
+    setMessages((prev) => [...prev, { role: "user", content: "Confirmed action." }]);
+    setSending(true);
+    apiRequest("/ai/agent/action", { method: "POST", body: { action }, auth: true })
+      .then((data) => {
+        setMessages((prev) => [...prev, { role: "assistant", content: data.answer || data.message, type: data.type }]);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setSending(false));
+  }
+
   return (
     <>
       <div className="mb-4">
@@ -95,8 +108,8 @@ export default function Chat() {
                         {JSON.stringify(message.action.payload, null, 2)}
                       </pre>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1">Cancel</Button>
-                        <Button variant="primary" size="sm" className="flex-1">Confirm</Button>
+                        <Button variant="outline" size="sm" className="flex-1" disabled={sending}>Cancel</Button>
+                        <Button variant="primary" size="sm" className="flex-1" loading={sending} onClick={() => handleConfirm(message.action)}>Confirm</Button>
                       </div>
                     </div>
                   )}

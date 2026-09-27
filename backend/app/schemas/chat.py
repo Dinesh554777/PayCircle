@@ -13,3 +13,12 @@ class ChatIn(BaseModel):
 class ChatOut(BaseModel):
     answer: str
     action: dict | None = None
+    type: str = "message"
+
+class ActionPayloadIn(BaseModel):
+    name: str
+    payload: dict
+
+class ChatActionRequest(BaseModel):
+    action: ActionPayloadIn
+    group_id: int | None = None
