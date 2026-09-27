@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Callable
+import json
+import urllib.request
+
+from app.core.config import get_settings
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -142,10 +146,12 @@ class ExpenseAgent:
         """Tool metadata for future LLM function-calling registration."""
         return [
             {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": {"type": "object", "properties": {}},
-                "safety": SAFETY_PREAMBLE,
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+                }
             }
             for tool in self._tools.values()
         ]
@@ -417,17 +423,66 @@ class ExpenseAgent:
             return "calculate_spending", {"period": "total"}
         return "", {}
 
-    def answer(self, question: str, user: User, group_id: int | None = None) -> str:
-        question = (question or "").strip()
-        if not question:
-            return _GUIDANCE
-
-        tool_name, args = self.resolve_intent(question)
-        if not tool_name:
-            return _GUIDANCE
-
-        result = self.run_tool(tool_name, user, group_id=group_id, **args)
-        return self._generate_response(tool_name, result)
+    def answer(self, question: str, user: User, group_id: int | None = None, history: list[dict] | None = None) -> str:
+        settings = get_settings()
+        api_key = settings.effective_ai_api_key
+        if not api_key:
+            # Fallback to local
+            tool_name, args = self.resolve_intent(question)
+            if not tool_name: return _GUIDANCE
+            return self._generate_response(tool_name, self.run_tool(tool_name, user, group_id=group_id, **args))
+            
+        messages = history or []
+        messages.append({"role": "user", "content": question})
+        system_prompt = {
+            "role": "system", 
+            "content": "You are a helpful PayCircle assistant. Use tools to get real data. NEVER invent data."
+        }
+        
+        payload = {
+            "model": settings.AI_MODEL,
+            "messages": [system_prompt] + messages,
+            "tools": self.list_tools(),
+            "tool_choice": "auto",
+            "temperature": 0.2
+        }
+        
+        req = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as res:
+                data = json.loads(res.read().decode("utf-8"))
+            msg = data["choices"][0]["message"]
+            if msg.get("tool_calls"):
+                for tc in msg["tool_calls"]:
+                    func = tc["function"]
+                    t_name = func["name"]
+                    t_args = json.loads(func["arguments"] or "{}")
+                    if t_name in self._tools:
+                        t_res = self.run_tool(t_name, user, group_id=group_id, **t_args)
+                        messages.append(msg)
+                        messages.append({"role": "tool", "tool_call_id": tc["id"], "name": t_name, "content": json.dumps(t_res, default=str)})
+                
+                # Second call with tool results
+                payload["messages"] = [system_prompt] + messages
+                payload.pop("tools", None)
+                payload.pop("tool_choice", None)
+                req2 = urllib.request.Request(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req2, timeout=15) as res2:
+                    data2 = json.loads(res2.read().decode("utf-8"))
+                return data2["choices"][0]["message"]["content"]
+            return msg.get("content", _GUIDANCE)
+        except Exception as e:
+            return f"I encountered an error while trying to answer: {str(e)}"
 
     # ------------------------------------------------------------ response gen
 

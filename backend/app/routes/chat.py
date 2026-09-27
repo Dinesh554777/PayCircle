@@ -26,4 +26,5 @@ def agent_chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return ChatOut(answer=ExpenseAgent(db).answer(data.message, current_user, group_id=data.group_id))
+    history = [m.model_dump() for m in data.history] if data.history else []
+    return ChatOut(answer=ExpenseAgent(db).answer(data.message, current_user, group_id=data.group_id, history=history))
