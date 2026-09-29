@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
     JWT_SECRET: str = ""
     FRONTEND_URL: str = ""  # Public frontend base URL used in email links; defaults to first CORS origin
+    
+    # Sentry & Environment Config
+    SENTRY_DSN: str = ""
+    ENVIRONMENT: str = "development"
+    
     AI_API_KEY: str = ""
     AI_MODEL: str = "llama-3.3-70b-versatile"
     AI_VISION_MODEL: str = "qwen/qwen3.8-27b"

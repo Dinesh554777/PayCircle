@@ -5,8 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-logger = logging.getLogger("paycircle-backend")
-
+from app.utils.logger import logger
 
 def install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
@@ -23,9 +22,9 @@ def install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.exception(
-            "Unhandled exception on %s %s", request.method, request.url.path
+            f"Unhandled exception on {request.method} {request.url.path}"
         )
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error"},
+            content={"detail": "Something went wrong. Please try again."},
         )
