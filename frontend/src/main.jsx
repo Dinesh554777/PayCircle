@@ -33,7 +33,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </ThemeProvider>
   </React.StrictMode>
 );
-
-setTimeout(() => {
-  throw new Error("Sentry frontend test");
-}, 2000);
