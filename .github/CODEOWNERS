@@ -1,0 +1,22 @@
+# Global catch-all is not strictly necessary, but we can assign everything to the owner
+* @Dinesh554777
+
+# Require mandatory human review for authentication and security
+/backend/app/core/security.py @Dinesh554777
+/backend/app/routes/auth.py @Dinesh554777
+/backend/app/services/user_service.py @Dinesh554777
+
+# Require mandatory human review for payments and Razorpay logic
+/backend/app/services/payment_service.py @Dinesh554777
+/backend/app/models/payment.py @Dinesh554777
+
+# Environment, Deployment, CI, and Configuration
+/.github/workflows/ @Dinesh554777
+/backend/app/core/config.py @Dinesh554777
+/backend/.env.example @Dinesh554777
+/frontend/.env.example @Dinesh554777
+
+# Sentry Configuration
+/backend/app/utils/logger.py @Dinesh554777
+/backend/app/utils/errors.py @Dinesh554777
+/frontend/src/main.jsx @Dinesh554777

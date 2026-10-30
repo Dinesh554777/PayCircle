@@ -42,10 +42,10 @@ def test_protected_endpoint_with_invalid_token(client):
 
 def test_role_authorization_admin_only(client, db_session):
     # Register a standard user
-    res = client.post("/api/auth/register", json={"email": "standard@example.com", "password": "pass", "name": "Std", "username": "std123"})
+    res = client.post("/api/auth/register", json={"email": "standard@example.com", "password": "password", "name": "Std", "username": "std123"})
     token = res.json()["access_token"]
     
     # Try an admin endpoint
-    response = client.get("/api/admin/system-stats", headers={"Authorization": f"Bearer {token}"})
+    response = client.get("/api/admin/stats", headers={"Authorization": f"Bearer {token}"})
     # Usually role mismatch returns 403
     assert response.status_code == 403

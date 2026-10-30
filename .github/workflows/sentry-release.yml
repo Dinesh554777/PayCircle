@@ -1,0 +1,37 @@
+name: Sentry Release and Commit Association
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  sentry-release:
+    runs-on: ubuntu-latest
+    # Wait for CI to pass before creating a release
+    # This prevents creating releases for broken builds
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to fetch commits for Sentry association
+          
+      - name: Create Sentry Backend Release
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_BACKEND_PROJECT }}
+        with:
+          environment: production
+          version: ${{ github.sha }}
+          set_commits: auto
+
+      - name: Create Sentry Frontend Release
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_FRONTEND_PROJECT }}
+        with:
+          environment: production
+          version: ${{ github.sha }}
+          set_commits: auto

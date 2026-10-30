@@ -25,3 +25,9 @@ def health_check(
         "version": settings.APP_VERSION,
         "database": "connected" if db_ok else "disconnected",
     }
+
+
+@router.get("/sentry-debug")
+def trigger_sentry_error():
+    """Intentional error endpoint for testing Sentry Autofix integrations without breaking production."""
+    raise Exception("This is a controlled test exception for Sentry Autofix.")
