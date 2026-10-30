@@ -7,18 +7,22 @@ from app.core.config import get_settings
 settings = get_settings()
 
 connect_args = {}
+engine_kwargs = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+else:
+    # Neon / PostgreSQL pooling settings
+    engine_kwargs.update({
+        "pool_pre_ping": True,
+        "pool_size": 5,
+        "max_overflow": 10,
+        "pool_recycle": 300,  # recycle connections every 5 min (handles Neon scale-to-zero)
+    })
 
-# Neon requires SSL; sslmode is in the URL query string, but we also
-# set pool_pre_ping so stale connections (after scale-to-zero) are recycled.
 engine = create_engine(
     settings.DATABASE_URL,
     connect_args=connect_args,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-    pool_recycle=300,  # recycle connections every 5 min (handles Neon scale-to-zero)
+    **engine_kwargs,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

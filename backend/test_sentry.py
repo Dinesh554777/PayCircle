@@ -8,9 +8,9 @@ print("--- Testing /api/health ---")
 r_health = client.get("/api/health")
 print(r_health.status_code, r_health.json())
 
-print("--- Testing /api/test-error ---")
+print("--- Testing /api/health/sentry-debug ---")
 try:
-    r_err = client.get("/api/test-error")
+    r_err = client.get("/api/health/sentry-debug")
     print(r_err.status_code, r_err.json())
 except Exception as e:
     print(f"Exception caught in client: {e}")

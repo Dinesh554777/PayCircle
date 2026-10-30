@@ -13,13 +13,17 @@ def promote_admin_emails() -> None:
     ]
     if not emails:
         return
-    db = SessionLocal()
     try:
-        users = db.query(User).filter(User.email.in_(emails)).all()
-        for user in users:
-            if not user.is_admin:
-                user.is_admin = True
-        if users:
-            db.commit()
-    finally:
-        db.close()
+        db = SessionLocal()
+        try:
+            users = db.query(User).filter(User.email.in_(emails)).all()
+            for user in users:
+                if not user.is_admin:
+                    user.is_admin = True
+            if users:
+                db.commit()
+        finally:
+            db.close()
+    except Exception:
+        # Table might not exist yet before migrations run or during isolated testing
+        pass
