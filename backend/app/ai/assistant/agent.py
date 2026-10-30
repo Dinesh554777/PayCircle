@@ -465,10 +465,15 @@ class ExpenseAgent:
             "temperature": 0.2
         }
         
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "PayCircle/0.1 (FastAPI backend)",
+        }
         req = urllib.request.Request(
             "https://api.groq.com/openai/v1/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         try:
@@ -494,7 +499,7 @@ class ExpenseAgent:
                 req2 = urllib.request.Request(
                     "https://api.groq.com/openai/v1/chat/completions",
                     data=json.dumps(payload).encode("utf-8"),
-                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    headers=headers,
                     method="POST"
                 )
                 with urllib.request.urlopen(req2, timeout=15) as res2:
@@ -502,6 +507,12 @@ class ExpenseAgent:
                 return data2["choices"][0]["message"]["content"]
             return msg.get("content", _GUIDANCE)
         except Exception as e:
+            tool_name, args = self.resolve_intent(question)
+            if tool_name:
+                try:
+                    return self._generate_response(tool_name, self.run_tool(tool_name, user, group_id=group_id, **args))
+                except Exception:
+                    pass
             return f"I encountered an error while trying to answer: {str(e)}"
 
     # ------------------------------------------------------------ response gen

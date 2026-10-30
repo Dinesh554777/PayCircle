@@ -56,7 +56,10 @@ class Settings(BaseSettings):
 
     @property
     def effective_ai_api_key(self) -> str:
-        return self.GROQ_API_KEY or self.AI_API_KEY
+        key = (self.GROQ_API_KEY or self.AI_API_KEY or "").strip()
+        if not key or key.startswith("your-") or "api-key-here" in key:
+            return ""
+        return key
 
     @property
     def auth_secret(self) -> str:
